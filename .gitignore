@@ -1,0 +1,33 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# project state (do not commit)
+state.db
+state.db-journal
+*.sqlite
+*.sqlite-journal
+
+# credentials + tokens (never commit)
+credentials/
+*.token.json
+token.json
+
+# generated drafts (.eml files)
+drafts/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# logs
+logs/
+*.log
