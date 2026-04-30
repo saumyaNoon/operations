@@ -95,31 +95,64 @@ def api_dismiss(alert_id):
     return jsonify({"ok": True})
 
 
-@app.post("/api/alerts/<int:alert_id>/draft")
-def api_create_draft(alert_id):
-    """build + post a gmail draft for an existing alert (on-demand, vardan 2026-04-28)."""
+def _build_alert_email(alert_id):
+    """resolve to/cc/subject/body from an alert id. shared by preview + create."""
     from api.lib.draft_builder import build_draft
     from api.lib.routing import resolve_routing
-    from api.lib.gmail_client import create_draft_in_matrix
     with conn() as c:
         r = c.execute("SELECT * FROM alert_log WHERE id=?", (alert_id,)).fetchone()
-        if not r: return jsonify({"ok": False, "error": "alert not found"}), 404
+        if not r: return None, "alert not found", 404
         alert = dict(r)
-    if alert.get("draft_id"):
-        return jsonify({"ok": False, "error": "draft already exists",
-                        "draft_id": alert["draft_id"]}), 409
     payload = json.loads(alert.get("payload_json") or "{}")
     payload["tier"] = alert.get("tier")
     if alert.get("ds_code"): payload["ds_code"] = alert["ds_code"]
     if alert.get("vendor_shortcode"): payload["vendor_shortcode"] = alert["vendor_shortcode"]
-
     try:
         subject, body = build_draft(alert["agent"], payload,
                                      sub_tab=alert.get("sub_tab"),
                                      date_=alert["drafted_at"][:10])
         to_, cc_ = resolve_routing(alert["agent"], payload,
                                     sub_tab=alert.get("sub_tab"), geo="ae")
-        draft_id = create_draft_in_matrix(to_, cc_, subject, body)
+    except Exception as e:
+        return None, str(e), 500
+    return {"alert": alert, "to": to_, "cc": cc_, "subject": subject, "body": body}, None, 200
+
+
+@app.get("/api/alerts/<int:alert_id>/preview")
+def api_preview_draft(alert_id):
+    """preview to/cc/subject/body for an alert without creating a gmail draft."""
+    out, err, code = _build_alert_email(alert_id)
+    if err: return jsonify({"ok": False, "error": err}), code
+    return jsonify({
+        "ok": True,
+        "to": out["to"], "cc": out["cc"],
+        "subject": out["subject"], "body_html": out["body"],
+        "draft_id": out["alert"].get("draft_id"),
+        "agent": out["alert"]["agent"],
+    })
+
+
+@app.post("/api/alerts/<int:alert_id>/draft")
+def api_create_draft(alert_id):
+    """build + post a gmail draft for an existing alert. accepts optional
+    body overrides {to, cc, subject, body_html} so the dashboard can let
+    the user edit before creation."""
+    from api.lib.gmail_client import create_draft_in_matrix
+    out, err, code = _build_alert_email(alert_id)
+    if err: return jsonify({"ok": False, "error": err}), code
+    alert = out["alert"]
+    if alert.get("draft_id"):
+        return jsonify({"ok": False, "error": "draft already exists",
+                        "draft_id": alert["draft_id"]}), 409
+
+    body_override = request.get_json(silent=True) or {}
+    to_      = body_override.get("to")      or out["to"]
+    cc_      = body_override.get("cc")      or out["cc"]
+    subject  = body_override.get("subject") or out["subject"]
+    body_html = body_override.get("body_html") or out["body"]
+
+    try:
+        draft_id = create_draft_in_matrix(to_, cc_, subject, body_html)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
