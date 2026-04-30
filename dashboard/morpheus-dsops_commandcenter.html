@@ -6,7 +6,7 @@
 <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="pragma" content="no-cache">
 <meta http-equiv="expires" content="0">
-<title>morpheus · ds ops command center · v2026-04-30b</title>
+<title>morpheus · ds ops command center · v2026-04-30d</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -638,14 +638,99 @@ function setSub(agentId, t) {
   renderDeepDive(agentId);
 }
 
+// open the draft preview modal · fetches /preview and shows editable fields
 async function createDraft(alertId, btn) {
-  btn.disabled = true; btn.textContent = "drafting…";
+  btn.disabled = true; btn.textContent = "loading…";
+  let preview;
   try {
-    await api(`/alerts/${alertId}/draft`, { method: "POST" });
-    btn.classList.add("has-draft"); btn.textContent = "drafted";
+    preview = await api(`/alerts/${alertId}/preview`);
   } catch (e) {
-    alert("draft failed: " + e.message);
-    btn.disabled = false; btn.textContent = "create draft";
+    alert("preview failed: " + e.message);
+    btn.disabled = false; btn.textContent = "create draft"; return;
+  }
+  btn.disabled = false; btn.textContent = "create draft";
+  if (preview.draft_id) {
+    if (!confirm("draft already created (" + preview.draft_id + "). recreate?")) return;
+  }
+  showDraftModal(alertId, preview, btn);
+}
+
+function showDraftModal(alertId, preview, originBtn) {
+  const existing = document.getElementById("draft-modal");
+  if (existing) existing.remove();
+  const wrap = document.createElement("div");
+  wrap.id = "draft-modal";
+  wrap.className = "modal-bg";
+  wrap.innerHTML = `<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <h3>create gmail draft · ${escapeHtml(preview.agent || "")}</h3>
+      <button class="modal-close" onclick="closeDraftModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div><label>to</label>
+        <input type="text" id="dm-to" value="${escapeHtml((preview.to || []).join(", "))}"/></div>
+      <div><label>cc</label>
+        <input type="text" id="dm-cc" value="${escapeHtml((preview.cc || []).join(", "))}"/></div>
+      <div><label>subject</label>
+        <input type="text" id="dm-subject" value="${escapeHtml(preview.subject || "")}"/></div>
+      <div><label>preview</label>
+        <div class="body-preview">${preview.body_html || ""}</div></div>
+      <div><label>body html (edit if needed)</label>
+        <textarea id="dm-body">${escapeHtml(preview.body_html || "")}</textarea></div>
+      <div id="dm-status" style="font-size:11.5px;color:var(--muted);"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" onclick="closeDraftModal()">cancel</button>
+      <button class="btn-primary" id="dm-submit" onclick="submitDraft(${alertId})">create draft in gmail</button>
+    </div>
+  </div>`;
+  wrap.addEventListener("click", () => closeDraftModal());
+  document.body.appendChild(wrap);
+  // stash btn reference for status update later
+  wrap.dataset.originBtn = originBtn ? originBtn.dataset.btnId || "" : "";
+  if (originBtn && !originBtn.dataset.btnId) {
+    originBtn.dataset.btnId = "btn-" + alertId;
+  }
+}
+
+function closeDraftModal() {
+  const m = document.getElementById("draft-modal");
+  if (m) m.remove();
+}
+
+async function submitDraft(alertId) {
+  const submit = document.getElementById("dm-submit");
+  const status = document.getElementById("dm-status");
+  submit.disabled = true; submit.textContent = "creating…";
+  status.textContent = "posting to gmail…"; status.style.color = "var(--muted)";
+
+  const to_ = document.getElementById("dm-to").value.split(",").map(s => s.trim()).filter(Boolean);
+  const cc_ = document.getElementById("dm-cc").value.split(",").map(s => s.trim()).filter(Boolean);
+  const subject = document.getElementById("dm-subject").value;
+  const body_html = document.getElementById("dm-body").value;
+
+  try {
+    const res = await api(`/alerts/${alertId}/draft`, {
+      method: "POST",
+      body: JSON.stringify({ to: to_, cc: cc_, subject, body_html }),
+    });
+    status.textContent = "✓ draft created · id " + (res.draft_id || "");
+    status.style.color = "var(--ok)";
+    submit.textContent = "done";
+    // mark all create-draft buttons for this alert as drafted
+    document.querySelectorAll('button.draft-btn').forEach(b => {
+      if (b.getAttribute('onclick')?.includes(`createDraft(${alertId},`)) {
+        b.classList.add("has-draft");
+        b.textContent = "drafted";
+        b.disabled = true;
+      }
+    });
+    setTimeout(closeDraftModal, 1500);
+  } catch (e) {
+    status.textContent = "✗ " + e.message;
+    status.style.color = "var(--t3)";
+    submit.disabled = false;
+    submit.textContent = "retry";
   }
 }
 
