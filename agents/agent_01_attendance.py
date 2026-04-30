@@ -46,11 +46,7 @@ def _ds_query(target_date, target_country, desig_filter):
         COUNT(DISTINCT CASE
                 WHEN LOWER(b.punch_status) LIKE '%leave'
                  AND b.punch_status <> 'Annual Leave'
-              THEN b.employee_id END) AS other_leave,
-        COUNT(DISTINCT CASE
-                WHEN b.punch_status NOT IN ('Punched Properly','Week Off','Annual Leave')
-                 AND LOWER(b.punch_status) NOT LIKE '%leave'
-              THEN b.employee_id END) AS absent_count
+              THEN b.employee_id END) AS other_leave
       FROM `noonbinimksa.Stores.Biometric_base_v2_3` b
       LEFT JOIN `noonbinimksa.Stores.warehouse` w ON b.wh_code = w.partner_wh_code
       WHERE b.created_date = DATE('{target_date}')
@@ -64,9 +60,11 @@ def _ds_query(target_date, target_country, desig_filter):
       active,
       (active - week_off - al_leave - other_leave) AS rostered,  -- planned
       present,
-      absent_count,
-      ROUND(SAFE_DIVIDE(absent_count, NULLIF(active - week_off - al_leave - other_leave, 0)) * 100, 1)
-        AS absent_pct
+      -- absent = planned - present (only people expected to show up but didn't punch)
+      GREATEST((active - week_off - al_leave - other_leave) - present, 0) AS absent_count,
+      ROUND(SAFE_DIVIDE(
+        GREATEST((active - week_off - al_leave - other_leave) - present, 0),
+        NULLIF(active - week_off - al_leave - other_leave, 0)) * 100, 1) AS absent_pct
     FROM manpower
     WHERE (active - week_off - al_leave - other_leave) > 0
     """
@@ -124,11 +122,7 @@ def _vendor_query(target_date, target_country):
       COUNT(DISTINCT CASE WHEN punch_status IN ('Punched Properly','Single Punch') THEN employee_id END) AS present,
       COUNT(DISTINCT CASE WHEN punch_status = 'Week Off' THEN employee_id END) AS week_off,
       COUNT(DISTINCT CASE WHEN punch_status = 'Annual Leave' THEN employee_id END) AS al_leave,
-      COUNT(DISTINCT CASE WHEN LOWER(punch_status) LIKE '%leave' AND punch_status <> 'Annual Leave' THEN employee_id END) AS other_leave,
-      COUNT(DISTINCT CASE
-              WHEN punch_status NOT IN ('Punched Properly','Week Off','Annual Leave')
-               AND LOWER(punch_status) NOT LIKE '%leave'
-            THEN employee_id END) AS absent_count
+      COUNT(DISTINCT CASE WHEN LOWER(punch_status) LIKE '%leave' AND punch_status <> 'Annual Leave' THEN employee_id END) AS other_leave
     FROM enriched
     WHERE final_id_vendor IS NOT NULL AND final_id_vendor <> 143
     GROUP BY final_id_vendor, v_shortcode, prefix_shortcode, v_name,
@@ -165,6 +159,8 @@ class AttendanceAgent(Agent):
                 rostered = (r.get("active", 0) - (r.get("week_off") or 0)
                             - (r.get("al_leave") or 0) - (r.get("other_leave") or 0))
                 r["rostered"] = rostered
+                # absent = planned - present (vardan 2026-04-30)
+                r["absent_count"] = max(rostered - (r.get("present") or 0), 0)
                 r["absent_pct"] = (round((r["absent_count"] / rostered * 100), 1) if rostered else 0)
         return rows
 
