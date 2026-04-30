@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>morpheus · ds ops command center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #fff;
+    --border: #e5e7eb;
+    --border-strong: #d1d5db;
+    --muted: #6b7280;
+    --muted2: #9ca3af;
+    --text: #1f2937;
+    --t1: #2563eb;
+    --t1-bg: #eff6ff;
+    --t2: #d97706;
+    --t2-bg: #fffbeb;
+    --t3: #dc2626;
+    --t3-bg: #fef2f2;
+    --ok: #16a34a;
+    --ok-bg: #f0fdf4;
+    --accent: #4338ca;
+    --accent-bg: #eef2ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "DM Sans", system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.5;
+  }
+  a { color: inherit; }
+
+  .page { display: flex; flex-direction: column; min-height: 100vh; }
+
+  header.topbar {
+    background: #111827;
+    color: #fff;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header.topbar h1 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  header.topbar .meta { font-size: 11px; color: var(--muted2); }
+  header.topbar .meta .dot {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; margin-right: 4px; vertical-align: middle;
+  }
+  .dot.ok { background: var(--ok); }
+  .dot.dead { background: var(--t3); }
+
+  .crumb {
+    padding: 12px 24px 0;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .crumb a { color: var(--accent); cursor: pointer; }
+  .crumb a:hover { text-decoration: underline; }
+
+  main { flex: 1; padding: 16px 24px 110px; overflow: auto; }
+
+  /* main view: agents grid */
+  .agents-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .agent-tile {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .agent-tile:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(67, 56, 202, 0.08);
+  }
+  .agent-tile.t3 { border-left: 3px solid var(--t3); }
+  .agent-tile.t2 { border-left: 3px solid var(--t2); }
+  .agent-tile.t1 { border-left: 3px solid var(--t1); }
+  .agent-tile.idle { border-left: 3px solid var(--ok); }
+
+  .agent-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .agent-name {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.3;
+  }
+  .agent-cadence {
+    font-size: 10px;
+    color: var(--muted2);
+    margin-top: 2px;
+    text-transform: lowercase;
+  }
+  .agent-arrow { color: var(--muted2); font-size: 14px; }
+
+  .tier-row {
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 0;
+  }
+  .tier-block { flex: 1; text-align: left; }
+  .tier-block .label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted2);
+    margin-bottom: 2px;
+  }
+  .tier-block .value {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .tier-block.t3 .value { color: var(--t3); }
+  .tier-block.t2 .value { color: var(--t2); }
+  .tier-block.t1 .value { color: var(--t1); }
+
+  .agent-breaches { font-size: 11.5px; color: var(--muted); }
+  .agent-breaches .label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted2);
+    margin-bottom: 5px;
+  }
+  .agent-breaches .br {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 2px 0;
+    font-size: 11px;
+  }
+  .pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 9.5px;
+    font-weight: 600;
+    border: 1px solid;
+    flex-shrink: 0;
+  }
+  .pill.t3 { color: var(--t3); border-color: var(--t3); background: var(--t3-bg); }
+  .pill.t2 { color: var(--t2); border-color: var(--t2); background: var(--t2-bg); }
+  .pill.t1 { color: var(--t1); border-color: var(--t1); background: var(--t1-bg); }
+
+  .agent-foot {
+    font-size: 10px;
+    color: var(--muted2);
+    margin-top: auto;
+  }
+
+  /* deep dive */
+  .dd-header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .dd-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  .dd-sub { font-size: 12px; color: var(--muted); }
+
+  .dd-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .dd-kpi {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .dd-kpi .label {
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted2);
+    margin-bottom: 4px;
+  }
+  .dd-kpi .value { font-size: 22px; font-weight: 600; line-height: 1; }
+  .dd-kpi .value.t3 { color: var(--t3); }
+  .dd-kpi .value.t2 { color: var(--t2); }
+  .dd-kpi .value.t1 { color: var(--t1); }
+
+  .dd-section { margin-bottom: 22px; }
+  .dd-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted2);
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .dd-label::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+  .dd-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 12px;
+  }
+  .dd-table th, .dd-table td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dd-table th {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    background: #f9fafb;
+  }
+  .dd-table tr:last-child td { border-bottom: none; }
+  .dd-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .sub-tabs { display: flex; gap: 4px; margin-bottom: 14px; }
+  .sub-tab {
+    padding: 6px 14px;
+    font-size: 12px;
+    border-radius: 6px;
+    background: #f3f4f6;
+    color: var(--muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .sub-tab.active {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* bottom strip */
+  .bottom-strip {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: #fff;
+    border-top: 1px solid var(--border);
+    padding: 10px 24px;
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 12px;
+    z-index: 50;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+  }
+  .kpi-cell {
+    border-right: 1px solid var(--border);
+    padding-right: 8px;
+  }
+  .kpi-cell:last-child { border-right: none; }
+  .kpi-cell .label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted2);
+    line-height: 1.2;
+  }
+  .kpi-cell .value {
+    font-size: 16px;
+    font-weight: 600;
+    margin-top: 2px;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-cell .sub {
+    font-size: 9.5px;
+    color: var(--muted2);
+    margin-top: 1px;
+  }
+
+  .empty {
+    font-size: 11px;
+    color: var(--muted2);
+    padding: 20px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="topbar">
+    <div>
+      <h1>morpheus · ds ops command center</h1>
+      <div style="font-size: 10px; color: var(--muted2); margin-top: 2px;">
+        11 agents · uae · cadence-driven
+      </div>
+    </div>
+    <div class="meta" id="status">connecting…</div>
+  </header>
+
+  <div class="crumb" id="crumb"></div>
+
+  <main id="view"></main>
+</div>
+
+<div class="bottom-strip" id="strip"></div>
+
+<script>
+const API = "http://127.0.0.1:5001/api";
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  if (!res.ok) throw new Error(res.status + " " + path);
+  return res.json();
+}
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;",
+    '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+function fmtNum(v, d = 1) {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v !== "number") v = Number(v);
+  if (isNaN(v)) return "—";
+  return v.toLocaleString(undefined, {
+    maximumFractionDigits: d,
+    minimumFractionDigits: d,
+  });
+}
+function fmtMoney(v) {
+  if (v === null || v === undefined) return "—";
+  return "$" + Math.round(Number(v)).toLocaleString();
+}
+function ago(ts) {
+  if (!ts) return "never";
+  const d = new Date(ts);
+  const mins = Math.round((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + "m ago";
+  if (mins < 1440) return Math.round(mins / 60) + "h ago";
+  return Math.round(mins / 1440) + "d ago";
+}
+
+async function loadHealth() {
+  const el = document.getElementById("status");
+  try {
+    const h = await api("/health");
+    el.innerHTML = `<span class="dot ok"></span>online · ${h.geo} · ${new Date(h.now).toLocaleTimeString()}`;
+  } catch (e) {
+    el.innerHTML = `<span class="dot dead"></span>backend offline · start flask on :5001`;
+  }
+}
+
+async function loadStrip() {
+  const el = document.getElementById("strip");
+  try {
+    const m = await api("/platform_health");
+    const cells = [
+      { label: "p95 fulfilment",      value: fmtNum(m.p95_fulfillment_mins, 1),                 sub: "min · created → fulfilled" },
+      { label: "p95 fulfil → delivery", value: fmtNum(m.p95_fulfilled_to_delivered_mins, 1),    sub: "min · last-mile" },
+      { label: "% defects",           value: fmtNum(m.pct_defects?.pct, 2) + "%",               sub: `${fmtNum(m.pct_defects?.defects, 0)} of ${fmtNum(m.pct_defects?.orders, 0)}` },
+      { label: "% skips",             value: fmtNum(m.pct_skips?.pct, 2) + "%",                 sub: `${fmtNum(m.pct_skips?.skips, 0)} of ${fmtNum(m.pct_skips?.picked, 0)}` },
+      { label: "fefo losses",         value: fmtMoney(m.fefo_losses?.value),                    sub: `${fmtNum(m.fefo_losses?.skus_breached, 0)} skus` },
+      { label: "audit pass %",        value: fmtNum(m.audit_pct_pass?.pct, 1) + "%",            sub: `${m.audit_pct_pass?.pass}/${m.audit_pct_pass?.total} stores` },
+      { label: "ambient putaway",     value: fmtNum(m.putaway_adherence?.ambient_pct, 1) + "%", sub: "≤ 360 min sla" },
+      { label: "frozen putaway",      value: fmtNum(m.putaway_adherence?.frozen_pct, 1) + "%",  sub: "≤ 30 min sla" },
+      { label: "chilled putaway",     value: fmtNum(m.putaway_adherence?.chilled_pct, 1) + "%", sub: "≤ 30 min sla" },
+      { label: "stocktake adh",       value: fmtNum(m.stocktake_adherence?.pct, 1) + "%",       sub: `${fmtNum(m.stocktake_adherence?.completed, 0)} of ${fmtNum(m.stocktake_adherence?.overall, 0)}` },
+    ];
+    el.innerHTML = cells.map(c => `
+      <div class="kpi-cell">
+        <div class="label">${c.label}</div>
+        <div class="value">${c.value}</div>
+        <div class="sub">${c.sub}</div>
+      </div>`).join("");
+  } catch (e) {
+    el.innerHTML = `<div class="kpi-cell">
+      <div class="label">platform health</div>
+      <div class="value">—</div>
+      <div class="sub">backend offline</div>
+    </div>`;
+  }
+}
+
+let agentsCache = null, alertsCache = null, dsRoutingCache = null;
+
+async function ensureCaches() {
+  if (!agentsCache) agentsCache = await api("/agents");
+  if (!alertsCache) alertsCache = await api("/alerts?hours=48");
+  if (!dsRoutingCache) {
+    const arr = await api("/routing/ds");
+    dsRoutingCache = Object.fromEntries(arr.map(r => [r.ds_code, r]));
+  }
+}
+
+function route() {
+  const hash = (location.hash || "").replace(/^#/, "");
+  if (hash.startsWith("agent_")) renderDeepDive(hash);
+  else renderMain();
+}
+
+async function renderMain() {
+  document.getElementById("crumb").innerHTML = "";
+  const el = document.getElementById("view");
+  el.innerHTML = `<div class="empty">loading agents…</div>`;
+  try {
+    await ensureCaches();
+    const byAgent = {};
+    for (const a of alertsCache) {
+      (byAgent[a.agent] = byAgent[a.agent] || []).push(a);
+    }
+    el.innerHTML = `
+      <div class="agents-grid">
+        ${agentsCache.map(a => renderTile(a, byAgent[a.id] || [])).join("")}
+      </div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="empty">cannot reach api · ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderTile(a, alerts) {
+  const c = a.counts_48h || {};
+  const t3 = c.t3 || 0, t2 = c.t2 || 0, t1 = c.t1 || 0;
+  const cls = t3 > 0 ? "t3" : t2 > 0 ? "t2" : t1 > 0 ? "t1" : "idle";
+  const lr = a.last_run || {};
+
+  const top3 = (alerts || []).slice(0, 3).map(r => {
+    const code = r.ds_code || r.vendor_shortcode || "—";
+    const mv = r.metric_value;
+    const mvs = typeof mv === "number" ? fmtNum(mv, 1) : (mv ?? "—");
+    return `<div class="br">
+      <span class="pill t${r.tier}">t${r.tier}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(code)}</span>
+      <span style="color:var(--muted2)">${escapeHtml(r.metric_name || "")}: ${mvs}</span>
+    </div>`;
+  }).join("") || `<div style="font-size:10.5px;color:var(--muted2);font-style:italic">no breaches in window</div>`;
+
+  return `
+    <div class="agent-tile ${cls}" onclick="location.hash='${a.id}'">
+      <div class="agent-header">
+        <div>
+          <div class="agent-name">${escapeHtml(a.name)}</div>
+          <div class="agent-cadence">${a.cadence} · ${ago(lr.completed_at)}</div>
+        </div>
+        <div class="agent-arrow">→</div>
+      </div>
+      <div class="tier-row">
+        <div class="tier-block t3"><div class="label">t3</div><div class="value">${t3}</div></div>
+        <div class="tier-block t2"><div class="label">t2</div><div class="value">${t2}</div></div>
+        <div class="tier-block t1"><div class="label">t1</div><div class="value">${t1}</div></div>
+      </div>
+      <div class="agent-breaches">
+        <div class="label">top breaches</div>
+        ${top3}
+      </div>
+      <div class="agent-foot">id ${a.id}</div>
+    </div>`;
+}
+
+const subTabState = { agent_01_attendance: "cc", agent_05_defects: "expired" };
+const SUB_TABS_BY_AGENT = {
+  agent_01_attendance: ["cc", "temp", "vendor"],
+  agent_05_defects:    ["expired", "near_expiry", "dairy_milk_quality"],
+};
+
+async function renderDeepDive(agentId) {
+  document.getElementById("crumb").innerHTML = `<a onclick="location.hash=''">← all agents</a>`;
+  const el = document.getElementById("view");
+  el.innerHTML = `<div class="empty">loading ${agentId}…</div>`;
+  try {
+    await ensureCaches();
+    const agent = agentsCache.find(a => a.id === agentId);
+    if (!agent) {
+      el.innerHTML = `<div class="empty">unknown agent ${escapeHtml(agentId)}</div>`;
+      return;
+    }
+    const alerts = alertsCache.filter(x => x.agent === agentId);
+    el.innerHTML = renderDeepHtml(agent, alerts);
+  } catch (e) {
+    el.innerHTML = `<div class="empty">error · ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderDeepHtml(agent, alerts) {
+  const c = agent.counts_48h || {};
+  const t3 = c.t3 || 0, t2 = c.t2 || 0, t1 = c.t1 || 0;
+  const lr = agent.last_run || {};
+  const subTabList = SUB_TABS_BY_AGENT[agent.id];
+  const subTab = subTabState[agent.id] || (subTabList && subTabList[0]) || null;
+  const filtered = subTabList ? alerts.filter(a => a.sub_tab === subTab) : alerts;
+
+  const subTabsHtml = subTabList
+    ? `<div class="sub-tabs">
+        ${subTabList.map(t =>
+          `<span class="sub-tab ${t === subTab ? 'active' : ''}" onclick="setSub('${agent.id}','${t}')">${t.replace(/_/g, ' ')}</span>`
+        ).join("")}
+      </div>` : "";
+
+  const tableRows = filtered.length ? filtered.map(r => {
+    const code = r.ds_code || r.vendor_shortcode || "—";
+    const ds = dsRoutingCache[code] || {};
+    const mv = r.metric_value;
+    const mvs = typeof mv === "number" ? fmtNum(mv, 2) : (mv ?? "—");
+    return `<tr>
+      <td><span class="pill t${r.tier}">t${r.tier}</span></td>
+      <td>${escapeHtml(code)}</td>
+      <td>${escapeHtml(ds.ds_name || r.payload?.ds_name || "—")}</td>
+      <td>${escapeHtml(ds.am_name || "—")}</td>
+      <td>${escapeHtml(r.metric_name || "")}</td>
+      <td class="num">${mvs}</td>
+      <td>${escapeHtml(r.status || "draft")}</td>
+      <td>${ago(r.drafted_at)}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="8"><div class="empty">no breaches in window</div></td></tr>`;
+
+  return `
+    <div class="dd-header">
+      <h2 class="dd-title">${escapeHtml(agent.name)}</h2>
+      <div class="dd-sub">${agent.cadence} · ${agent.id} · last run ${lr.completed_at ? new Date(lr.completed_at).toLocaleString() : "never"} · scanned ${lr.rows_scanned ?? 0} rows</div>
+    </div>
+
+    <div class="dd-kpis">
+      <div class="dd-kpi"><div class="label">t3 critical</div><div class="value t3">${t3}</div></div>
+      <div class="dd-kpi"><div class="label">t2 watch</div><div class="value t2">${t2}</div></div>
+      <div class="dd-kpi"><div class="label">t1 floor</div><div class="value t1">${t1}</div></div>
+      <div class="dd-kpi"><div class="label">drafts created</div><div class="value">${lr.drafts_created ?? 0}</div></div>
+    </div>
+
+    ${subTabsHtml}
+
+    <div class="dd-section">
+      <div class="dd-label">breaches · last 48h</div>
+      <table class="dd-table">
+        <thead>
+          <tr>
+            <th>tier</th><th>code</th><th>ds name</th><th>am</th>
+            <th>metric</th><th class="num">value</th><th>status</th><th>drafted</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function setSub(agentId, t) {
+  subTabState[agentId] = t;
+  renderDeepDive(agentId);
+}
+
+window.addEventListener("hashchange", () => {
+  agentsCache = null; alertsCache = null;
+  route();
+});
+
+async function refreshAll() {
+  agentsCache = null; alertsCache = null; dsRoutingCache = null;
+  await Promise.all([loadHealth(), loadStrip(), route()]);
+}
+
+refreshAll();
+setInterval(refreshAll, 60_000);
+</script>
+</body>
+</html>
