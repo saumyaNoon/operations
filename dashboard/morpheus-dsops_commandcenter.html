@@ -6,7 +6,7 @@
 <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="pragma" content="no-cache">
 <meta http-equiv="expires" content="0">
-<title>morpheus · ds ops command center · v2026-04-30g</title>
+<title>morpheus · ds ops command center · v2026-04-30h</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -284,7 +284,7 @@ async function loadStrip() {
   try {
     const m = await api("/platform_health");
     const cells = [
-      { label: "present pickers",     value: fmtInt(m.total_logged_in?.total),               sub: `bio ${fmtInt(m.total_logged_in?.via_biometric)} · ipp ${fmtInt(m.total_logged_in?.via_ipp)}` },
+      { label: "present pickers",     value: fmtInt(m.total_logged_in?.total),               sub: `+${fmtInt(m.total_logged_in?.ipp_only_extras)} ipp-only (no bio punch)` },
       { label: "% absenteeism",       value: fmt(m.pct_absenteeism?.pct, 1) + "%",           sub: `${fmtInt(m.pct_absenteeism?.absent)} of ${fmtInt(m.pct_absenteeism?.planned)} planned` },
       { label: "p95 fulfilment",      value: fmt(m.p95_fulfillment_mins, 1),                 sub: "min · fulfilling → fulfilled" },
       { label: "p95 fulfil → delivery", value: fmt(m.p95_fulfilled_to_delivered_mins, 1),    sub: "min · last-mile" },
@@ -584,12 +584,14 @@ async function renderDeepDive(agentId) {
 }
 
 function renderDeepHtml(agent, alerts) {
-  const c = agent.counts_48h || {};
-  const t3 = c.t3 || 0, t2 = c.t2 || 0, t1 = c.t1 || 0;
   const lr = agent.last_run || {};
   const subTabList = SUB_TABS_BY_AGENT[agent.id];
   const subTab = subTabState[agent.id] || (subTabList && subTabList[0]) || null;
   const filtered = subTabList ? alerts.filter(a => a.sub_tab === subTab) : alerts;
+  // sub-tab-aware tier counts (was: total across all sub-tabs which was misleading)
+  const t3 = filtered.filter(a => a.tier === 3).length;
+  const t2 = filtered.filter(a => a.tier === 2).length;
+  const t1 = filtered.filter(a => a.tier === 1).length;
   // sort t3 → t2 → t1, then by metric desc
   filtered.sort((a, b) => {
     if ((b.tier || 0) !== (a.tier || 0)) return (b.tier || 0) - (a.tier || 0);

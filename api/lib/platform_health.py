@@ -340,9 +340,10 @@ def pct_absenteeism(country="ae"):
 # 12. total logged-in pickers (biometric OR ipp login union)
 # ──────────────────────────────────────────────────────────────────────────────
 def total_logged_in(country="ae"):
-    """count distinct employees who EITHER punched biometric OR appeared in IPP today.
-    biometric login = valid_in_time IS NOT NULL OR Punched Properly / Single Punch.
-    ipp login = appeared in ipp_daily_<country> for that date."""
+    """present pickers = SAME definition as pct_absenteeism's present (biometric
+    punched properly OR single punch). aligns the two top-strip cards so
+    present + absent = planned. the IPP-only side count is surfaced in the
+    sub-line for context but doesn't affect the headline number."""
     def _go():
         td = _yesterday()
         sql = f"""
@@ -352,27 +353,23 @@ def total_logged_in(country="ae"):
           LEFT JOIN `noonbinimksa.Stores.warehouse` w ON b.wh_code = w.partner_wh_code
           WHERE b.created_date = DATE('{td}')
             AND LOWER(w.country_code) = '{country}'
-            AND (b.valid_in_time IS NOT NULL
-                 OR b.punch_status IN ('Punched Properly','Single Punch'))
+            AND b.punch_status IN ('Punched Properly','Single Punch')
         ),
-        ipp AS (
-          SELECT DISTINCT Employee_ID AS eid
-          FROM `noonbinimksa.darkstore.ipp_daily_{country}`
-          WHERE date = DATE('{td}') AND Employee_ID IS NOT NULL
+        ipp_only AS (
+          SELECT DISTINCT i.Employee_ID AS eid
+          FROM `noonbinimksa.darkstore.ipp_daily_{country}` i
+          WHERE i.date = DATE('{td}') AND i.Employee_ID IS NOT NULL
+            AND i.Employee_ID NOT IN (SELECT eid FROM bio)
         )
         SELECT
-          COUNT(DISTINCT eid) AS total,
-          COUNT(DISTINCT CASE WHEN src = 'bio' THEN eid END) AS via_biometric,
-          COUNT(DISTINCT CASE WHEN src = 'ipp' THEN eid END) AS via_ipp
-        FROM (
-          SELECT eid, 'bio' AS src FROM bio
-          UNION ALL SELECT eid, 'ipp' AS src FROM ipp
-        )
+          (SELECT COUNT(*) FROM bio) AS total,
+          (SELECT COUNT(*) FROM bio) AS via_biometric,
+          (SELECT COUNT(*) FROM ipp_only) AS ipp_only_extras
         """
         r = bq_run(sql)
         if not r: return None
         return {"total": r[0]["total"], "via_biometric": r[0]["via_biometric"],
-                "via_ipp": r[0]["via_ipp"]}
+                "ipp_only_extras": r[0]["ipp_only_extras"]}
     return _cached(f"logged_in_{country}", _go)
 
 

@@ -169,13 +169,15 @@ class AttendanceAgent(Agent):
         return rows
 
     def tier_spec(self, sub_tab=None) -> TierSpec:
+        # worst_n_floor=200 effectively disables the significance gate cap
+        # — surface every store that genuinely breaches the absent% / count rule
         return TierSpec(
             metric_field="absent_pct", count_field="absent_count",
             floor=3.0,
             t3_metric=8.0, t3_count=10,
             t2_metric=5.0, t2_count=5,
             t1_metric=3.0, t1_count=None,
-            use_or_logic=True, worst_n_floor=5,
+            use_or_logic=True, worst_n_floor=200,
         )
 
 
