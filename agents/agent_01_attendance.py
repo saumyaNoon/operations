@@ -30,6 +30,7 @@ from api.lib.bigquery_client import run as bq_run
 
 CC_DESIG = "(UPPER(b.HR_Desig) NOT LIKE '%TEMP%' AND b.HR_Desig IS NOT NULL)"
 TEMP_DESIG = "UPPER(b.HR_Desig) LIKE '%TEMP%'"
+ALL_DESIG = "1=1"  # overall: every employee with biometric record
 
 
 def _ds_query(target_date, target_country, desig_filter):
@@ -135,7 +136,8 @@ def _vendor_query(target_date, target_country):
 class AttendanceAgent(Agent):
     AGENT_ID = "agent_01_attendance"
     CADENCE = "daily"
-    SUB_TABS = ("cc_today", "cc_d1", "temp_today", "temp_d1", "vendor_today", "vendor_d1")
+    SUB_TABS = ("overall_today", "cc_today", "temp_today", "vendor_today",
+                "overall_d1", "cc_d1", "temp_d1", "vendor_d1")
 
     def _date_for(self, sub_tab):
         if sub_tab.endswith("_today"):
@@ -145,7 +147,9 @@ class AttendanceAgent(Agent):
     def scan(self, sub_tab=None):
         if sub_tab is None: return []
         td = str(self._date_for(sub_tab))
-        if sub_tab.startswith("cc_"):
+        if sub_tab.startswith("overall_"):
+            sql = _ds_query(td, self.geo, ALL_DESIG)
+        elif sub_tab.startswith("cc_"):
             sql = _ds_query(td, self.geo, CC_DESIG)
         elif sub_tab.startswith("temp_"):
             sql = _ds_query(td, self.geo, TEMP_DESIG)
