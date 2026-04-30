@@ -176,22 +176,32 @@ def api_send(alert_id):
 # ── agents ────────────────────────────────────────────────────────────────────
 @app.get("/api/agents")
 def api_agents():
+    # primary sub_tab per agent — tile count uses ONLY this sub-tab to avoid
+    # double-counting (e.g. agent_01 'overall_today' is the union of cc + temp +
+    # vendor; counting all 4 sub-tabs would 4× the same store).
+    PRIMARY_SUB = {
+        "agent_01_attendance":   "overall_today",
+        "agent_02_iph_pickers":  "overall_d0",
+        "agent_03_iph_putaway":  "overall_d0",
+        "agent_04_skips_picker": "store",
+    }
     out = []
     for aid, name, cadence in AGENTS:
         meta = latest_run(aid) or {}
+        primary = PRIMARY_SUB.get(aid)
+        sub_filter = " AND sub_tab = ?" if primary else " AND (sub_tab IS NULL OR sub_tab = '')"
+        args = [aid] + ([primary] if primary else [])
         with conn() as c:
-            # tile counts = distinct stores (or vendors) per tier, not raw alerts.
-            # same ds can appear in multiple sub-tabs (e.g. attendance overall + cc + temp)
-            # — we want unique-store count for the tile, not the sum.
             counts = c.execute(
-                """SELECT
-                   COUNT(DISTINCT CASE WHEN tier=1 THEN COALESCE(ds_code, vendor_shortcode) END) AS t1,
-                   COUNT(DISTINCT CASE WHEN tier=2 THEN COALESCE(ds_code, vendor_shortcode) END) AS t2,
-                   COUNT(DISTINCT CASE WHEN tier=3 THEN COALESCE(ds_code, vendor_shortcode) END) AS t3,
-                   COUNT(DISTINCT COALESCE(ds_code, vendor_shortcode)) AS total
+                f"""SELECT
+                   SUM(CASE WHEN tier=1 THEN 1 ELSE 0 END) AS t1,
+                   SUM(CASE WHEN tier=2 THEN 1 ELSE 0 END) AS t2,
+                   SUM(CASE WHEN tier=3 THEN 1 ELSE 0 END) AS t3,
+                   COUNT(*) AS total
                    FROM alert_log
-                   WHERE agent=? AND drafted_at > datetime('now','-48 hours')""",
-                (aid,)
+                   WHERE agent=? {sub_filter}
+                     AND drafted_at > datetime('now','-48 hours')""",
+                args
             ).fetchone()
         out.append({
             "id": aid,
