@@ -23,28 +23,32 @@ FAIL_BELOW = 0.85
 def _query(target_date, country):
     cc_upper = country.upper()
     return f"""
-    SELECT
-      partner_wh_code AS ds_code,
-      DS_name AS ds_name,
-      area_name_en,
-      Fulfilment_AM AS am_name,
-      lead_name,
-      logistic_head_name,
-      score1, score2, score3, score4,
-      fail_status,
-      audit_date,
-      (CASE WHEN score1 IS NOT NULL AND score1 < {FAIL_BELOW} THEN 1 ELSE 0 END
-       + CASE WHEN score2 IS NOT NULL AND score2 < {FAIL_BELOW} THEN 1 ELSE 0 END
-       + CASE WHEN score3 IS NOT NULL AND score3 < {FAIL_BELOW} THEN 1 ELSE 0 END
-       + CASE WHEN score4 IS NOT NULL AND score4 < {FAIL_BELOW} THEN 1 ELSE 0 END
-      ) AS fails_in_4w
-    FROM `noonbinimksa.darkstore.historic_score1`
-    WHERE country_code = '{cc_upper}'
-      AND audit_date = (
-        SELECT MAX(audit_date)
-        FROM `noonbinimksa.darkstore.historic_score1`
-        WHERE country_code = '{cc_upper}' AND audit_date <= DATE('{target_date}')
-      )
+    -- latest audit per ds (audits are weekly; ds aren't all audited on the same day)
+    SELECT * EXCEPT (rn, fails_in_4w_calc),
+           fails_in_4w_calc AS fails_in_4w
+    FROM (
+      SELECT
+        partner_wh_code AS ds_code,
+        DS_name AS ds_name,
+        area_name_en,
+        Fulfilment_AM AS am_name,
+        lead_name,
+        logistic_head_name,
+        score1, score2, score3, score4,
+        fail_status,
+        audit_date,
+        (CASE WHEN score1 IS NOT NULL AND score1 < {FAIL_BELOW} THEN 1 ELSE 0 END
+         + CASE WHEN score2 IS NOT NULL AND score2 < {FAIL_BELOW} THEN 1 ELSE 0 END
+         + CASE WHEN score3 IS NOT NULL AND score3 < {FAIL_BELOW} THEN 1 ELSE 0 END
+         + CASE WHEN score4 IS NOT NULL AND score4 < {FAIL_BELOW} THEN 1 ELSE 0 END
+        ) AS fails_in_4w_calc,
+        ROW_NUMBER() OVER (PARTITION BY partner_wh_code ORDER BY audit_date DESC) AS rn
+      FROM `noonbinimksa.darkstore.historic_score1`
+      WHERE country_code = '{cc_upper}'
+        AND score1 IS NOT NULL
+        AND audit_date <= DATE('{target_date}')
+    )
+    WHERE rn = 1
     """
 
 

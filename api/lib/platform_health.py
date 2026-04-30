@@ -188,16 +188,20 @@ def audit_pct_pass(country="ae"):
     def _go():
         cc_upper = country.upper()
         sql = f"""
+        -- latest audit per ds (audits run weekly; not all ds on same day)
         WITH latest AS (
-          SELECT *, MAX(audit_date) OVER () AS max_d
-          FROM `noonbinimksa.darkstore.historic_score1`
-          WHERE country_code = '{cc_upper}'
+          SELECT * FROM (
+            SELECT *,
+                   ROW_NUMBER() OVER (PARTITION BY partner_wh_code ORDER BY audit_date DESC) AS rn
+            FROM `noonbinimksa.darkstore.historic_score1`
+            WHERE country_code = '{cc_upper}' AND score1 IS NOT NULL
+          ) WHERE rn = 1
         )
         SELECT
-          COUNTIF(score1 >= 0.95) AS pass_stores,
+          COUNTIF(score1 >= 0.85) AS pass_stores,
           COUNT(*) AS total_stores,
-          ROUND(SAFE_DIVIDE(COUNTIF(score1 >= 0.95), COUNT(*)) * 100, 1) AS pct
-        FROM latest WHERE audit_date = max_d
+          ROUND(SAFE_DIVIDE(COUNTIF(score1 >= 0.85), COUNT(*)) * 100, 1) AS pct
+        FROM latest
         """
         r = bq_run(sql)
         if not r: return None
