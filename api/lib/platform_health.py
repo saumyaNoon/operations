@@ -295,10 +295,90 @@ def stocktake_adherence(country="ae"):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# 11. %absenteeism (uae cc-grain, today)
+# ──────────────────────────────────────────────────────────────────────────────
+def pct_absenteeism(country="ae"):
+    """% absent across all UAE stores today, cc-grain."""
+    def _go():
+        td = _yesterday()
+        sql = f"""
+        WITH manpower AS (
+          SELECT
+            COUNT(DISTINCT b.employee_id) AS active,
+            COUNT(DISTINCT CASE WHEN b.punch_status IN ('Punched Properly','Single Punch')
+                                THEN b.employee_id END) AS present,
+            COUNT(DISTINCT CASE WHEN b.punch_status = 'Week Off' THEN b.employee_id END) AS week_off,
+            COUNT(DISTINCT CASE WHEN b.punch_status = 'Annual Leave' THEN b.employee_id END) AS al_leave,
+            COUNT(DISTINCT CASE WHEN LOWER(b.punch_status) LIKE '%leave'
+                                 AND b.punch_status <> 'Annual Leave' THEN b.employee_id END) AS other_leave
+          FROM `noonbinimksa.Stores.Biometric_base_v2_3` b
+          LEFT JOIN `noonbinimksa.Stores.warehouse` w ON b.wh_code = w.partner_wh_code
+          WHERE b.created_date = DATE('{td}')
+            AND LOWER(w.country_code) = '{country}'
+        )
+        SELECT
+          active,
+          (active - week_off - al_leave - other_leave) AS planned,
+          present,
+          GREATEST((active - week_off - al_leave - other_leave) - present, 0) AS absent,
+          ROUND(SAFE_DIVIDE(GREATEST((active - week_off - al_leave - other_leave) - present, 0),
+                            NULLIF(active - week_off - al_leave - other_leave, 0)) * 100, 1) AS pct
+        FROM manpower
+        """
+        r = bq_run(sql)
+        if not r: return None
+        return {"pct": r[0]["pct"], "absent": r[0]["absent"], "planned": r[0]["planned"],
+                "present": r[0]["present"]}
+    return _cached(f"pct_absent_{country}", _go)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 12. total logged-in pickers (biometric OR ipp login union)
+# ──────────────────────────────────────────────────────────────────────────────
+def total_logged_in(country="ae"):
+    """count distinct employees who EITHER punched biometric OR appeared in IPP today.
+    biometric login = valid_in_time IS NOT NULL OR Punched Properly / Single Punch.
+    ipp login = appeared in ipp_daily_<country> for that date."""
+    def _go():
+        td = _yesterday()
+        sql = f"""
+        WITH bio AS (
+          SELECT DISTINCT b.employee_id AS eid
+          FROM `noonbinimksa.Stores.Biometric_base_v2_3` b
+          LEFT JOIN `noonbinimksa.Stores.warehouse` w ON b.wh_code = w.partner_wh_code
+          WHERE b.created_date = DATE('{td}')
+            AND LOWER(w.country_code) = '{country}'
+            AND (b.valid_in_time IS NOT NULL
+                 OR b.punch_status IN ('Punched Properly','Single Punch'))
+        ),
+        ipp AS (
+          SELECT DISTINCT Employee_ID AS eid
+          FROM `noonbinimksa.darkstore.ipp_daily_{country}`
+          WHERE date = DATE('{td}') AND Employee_ID IS NOT NULL
+        )
+        SELECT
+          COUNT(DISTINCT eid) AS total,
+          COUNT(DISTINCT CASE WHEN src = 'bio' THEN eid END) AS via_biometric,
+          COUNT(DISTINCT CASE WHEN src = 'ipp' THEN eid END) AS via_ipp
+        FROM (
+          SELECT eid, 'bio' AS src FROM bio
+          UNION ALL SELECT eid, 'ipp' AS src FROM ipp
+        )
+        """
+        r = bq_run(sql)
+        if not r: return None
+        return {"total": r[0]["total"], "via_biometric": r[0]["via_biometric"],
+                "via_ipp": r[0]["via_ipp"]}
+    return _cached(f"logged_in_{country}", _go)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # bundle for the api endpoint
 # ──────────────────────────────────────────────────────────────────────────────
 def all_metrics(country="ae"):
     metrics = {}
+    metrics["pct_absenteeism"] = _safe(pct_absenteeism, country)
+    metrics["total_logged_in"] = _safe(total_logged_in, country)
     metrics["p95_fulfillment_mins"] = _safe(p95_fulfillment_speed, country)
     metrics["p95_fulfilled_to_delivered_mins"] = _safe(p95_fulfilled_to_delivered, country)
     metrics["pct_defects"] = _safe(pct_defects, country)

@@ -6,7 +6,7 @@
 <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="pragma" content="no-cache">
 <meta http-equiv="expires" content="0">
-<title>morpheus · ds ops command center · v2026-04-30d</title>
+<title>morpheus · ds ops command center · v2026-04-30e</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -42,7 +42,7 @@
   .crumb { padding: 12px 24px 0; font-size: 11px; color: var(--muted); }
   .crumb a { color: var(--accent); cursor: pointer; }
   .crumb a:hover { text-decoration: underline; }
-  main { flex: 1; padding: 16px 24px 110px; overflow: auto; }
+  main { flex: 1; padding: 16px 24px 40px; overflow: auto; }
   .agents-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
   .agent-tile {
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
@@ -151,10 +151,10 @@
   .draft-btn.has-draft { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
 
   .bottom-strip {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: #fff; border-top: 1px solid var(--border);
-    padding: 10px 24px; display: grid; grid-template-columns: repeat(10, 1fr);
-    gap: 12px; z-index: 50; box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+    background: #fff; border: 1px solid var(--border); border-radius: 10px;
+    margin: 0 24px 16px; padding: 12px 18px;
+    display: grid; grid-template-columns: repeat(12, 1fr);
+    gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   }
   .kpi-cell { border-right: 1px solid var(--border); padding-right: 8px; }
   .kpi-cell:last-child { border-right: none; }
@@ -223,9 +223,9 @@
     <div class="meta" id="status">connecting…</div>
   </header>
   <div class="crumb" id="crumb"></div>
+  <div class="bottom-strip" id="strip" style="margin-top: 16px;"></div>
   <main id="view"></main>
 </div>
-<div class="bottom-strip" id="strip"></div>
 
 <script>
 const API = "http://127.0.0.1:5001/api";
@@ -282,6 +282,8 @@ async function loadStrip() {
   try {
     const m = await api("/platform_health");
     const cells = [
+      { label: "% absenteeism",       value: fmt(m.pct_absenteeism?.pct, 1) + "%",           sub: `${fmtInt(m.pct_absenteeism?.absent)} of ${fmtInt(m.pct_absenteeism?.planned)} planned` },
+      { label: "logged-in pickers",   value: fmtInt(m.total_logged_in?.total),               sub: `bio ${fmtInt(m.total_logged_in?.via_biometric)} · ipp ${fmtInt(m.total_logged_in?.via_ipp)}` },
       { label: "p95 fulfilment",      value: fmt(m.p95_fulfillment_mins, 1),                 sub: "min · fulfilling → fulfilled" },
       { label: "p95 fulfil → delivery", value: fmt(m.p95_fulfilled_to_delivered_mins, 1),    sub: "min · last-mile" },
       { label: "% defects",           value: fmt(m.pct_defects?.pct, 2) + "%",               sub: `${fmtInt(m.pct_defects?.defects)} of ${fmtInt(m.pct_defects?.orders)}` },
