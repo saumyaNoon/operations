@@ -180,12 +180,15 @@ def api_agents():
     for aid, name, cadence in AGENTS:
         meta = latest_run(aid) or {}
         with conn() as c:
+            # tile counts = distinct stores (or vendors) per tier, not raw alerts.
+            # same ds can appear in multiple sub-tabs (e.g. attendance overall + cc + temp)
+            # — we want unique-store count for the tile, not the sum.
             counts = c.execute(
                 """SELECT
-                   SUM(CASE WHEN tier=1 THEN 1 ELSE 0 END) AS t1,
-                   SUM(CASE WHEN tier=2 THEN 1 ELSE 0 END) AS t2,
-                   SUM(CASE WHEN tier=3 THEN 1 ELSE 0 END) AS t3,
-                   COUNT(*) AS total
+                   COUNT(DISTINCT CASE WHEN tier=1 THEN COALESCE(ds_code, vendor_shortcode) END) AS t1,
+                   COUNT(DISTINCT CASE WHEN tier=2 THEN COALESCE(ds_code, vendor_shortcode) END) AS t2,
+                   COUNT(DISTINCT CASE WHEN tier=3 THEN COALESCE(ds_code, vendor_shortcode) END) AS t3,
+                   COUNT(DISTINCT COALESCE(ds_code, vendor_shortcode)) AS total
                    FROM alert_log
                    WHERE agent=? AND drafted_at > datetime('now','-48 hours')""",
                 (aid,)
