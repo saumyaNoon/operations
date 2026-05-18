@@ -1,4 +1,4 @@
-"""
+﻿"""
 nim-agents-ops agents/_base.py
 
 base class every agent extends. owns the run lifecycle:
@@ -26,7 +26,7 @@ ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
 from api.lib.db import (
-    init_db, log_alert, was_alerted_recently, log_action,
+    init_db, log_alert, upsert_alert, was_alerted_recently, log_action,
     start_run, finish_run
 )
 from api.lib.tiering import assign_tiers, TierSpec
@@ -45,9 +45,12 @@ class Agent:
     _GEO_ALIASES = {"uae": "ae", "ksa": "sa", "egy": "eg", "egp": "eg", "bhr": "bh", "qat": "qa"}
 
     def __init__(self, geo=None, target_date=None, dry_run=False):
-        raw = (geo or self.GEO_DEFAULT).lower()
+        # AGENT_GEO env var lets flask /api/agents/run-all run each agent for
+        # multiple countries via subprocess without editing each agent's __main__.
+        # explicit `geo=` arg still wins over env (used by tests + direct callers).
+        raw = (geo or os.getenv("AGENT_GEO") or self.GEO_DEFAULT).lower()
         self.geo = self._GEO_ALIASES.get(raw, raw)
-        self.target_date = target_date or (date.today() - timedelta(days=1))
+        self.target_date = target_date or date.today()
         self.dry_run = dry_run
         self.run_id = None
         init_db()
@@ -90,12 +93,9 @@ class Agent:
                     elif tier == 3: total_t3 += 1
 
                     rk = self.row_key(r, sub_tab)
-                    if was_alerted_recently(self.AGENT_ID, rk, hours=48):
-                        continue
-
-                    # vardan 2026-04-28: agents only compute + log breaches.
-                    # drafts are created on-demand from the dashboard, not here.
-                    log_alert(
+                    # upsert: re-runs on the same day update payload+metric so
+                    # dashboard REFRESH always shows the latest BQ numbers.
+                    upsert_alert(
                         self.AGENT_ID, rk, tier,
                         sub_tab=sub_tab,
                         ds_code=r.get("ds_code"),
@@ -104,7 +104,6 @@ class Agent:
                         metric_value=r.get(spec.metric_field),
                         contribution_pct=r.get(spec.contrib_field),
                         payload=r,
-                        draft_id=None,
                         status="breach",
                     )
         except Exception as e:

@@ -1,4 +1,4 @@
-"""
+﻿"""
 nim-agents-ops api/app.py
 
 flask app, port 5001 (sc lives on 5055/5000). serves the react dashboard at
@@ -18,6 +18,8 @@ routes:
   /api/notes                     GET / POST
   /api/drafts                    list matrix drafts (gmail)
   /api/thresholds/<agent>        latest p20/p50/p80 per opd-bucket
+  /actions                       SEPARATE TAB — action plan page (built from action_layer)
+  /api/actions/take              POST 3-mode action (email/whatsapp/copy)
 """
 import os, sys, json, importlib, subprocess
 from datetime import datetime, date, timedelta
@@ -35,9 +37,25 @@ from api.lib.db import (
 from api.lib.gmail_client import list_matrix_drafts
 from api.lib.platform_health import all_metrics as platform_health_metrics
 
+# oracle_gm blueprint — sibling cockpit on the same flask process
+from api.blueprints.oracle_gm import bp as oracle_gm_bp, init as oracle_gm_init
+# triage blueprint — in-page draft compose+approve+save flow for /email-triage
+from api.blueprints.triage import bp as triage_bp
+
 app = Flask(__name__)
 CORS(app, origins=["http://localhost:*", "http://127.0.0.1:*",
                    "file://*", "null"])
+app.register_blueprint(oracle_gm_bp)
+app.register_blueprint(triage_bp)
+oracle_gm_init()  # ensures metrics_snapshot + category_atc_drops tables exist
+
+@app.after_request
+def no_cache(resp):
+    if request.path.startswith("/api/"):
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+    return resp
 
 # 11-agent registry: id → (display_name, cadence, module)
 AGENTS = [
@@ -52,6 +70,7 @@ AGENTS = [
     ("agent_09_missing_inventory", "missing inventory",          "hourly"),
     ("agent_10_skips_stocktake",   "skips (incident stocktake)", "hourly"),
     ("agent_11_audit_scores",      "audit scores",               "daily"),
+    ("agent_12_bt_pending_pick",   "bt pending pick",            "hourly"),
 ]
 
 
@@ -184,13 +203,29 @@ def api_agents():
         "agent_02_iph_pickers":  "overall_d0",
         "agent_03_iph_putaway":  "overall_d0",
         "agent_04_skips_picker": "store",
+        # for agent_07 the tile sums BOTH partner_9411 + non_9411 (different
+        # universes — noon-own + 3rd party), so no primary filter needed.
+        # tile reflects the union of unique stores across the two sub-tabs.
     }
     out = []
+    # agents whose alert_log rows always have sub_tab=NULL (single-grain).
+    # used to apply NULL filter only for these to avoid summing across sub-tabs
+    # for agents like agent_07 where sub_tabs are mutually exclusive universes.
+    NULL_SUB_AGENTS = {"agent_05_defects", "agent_06_fefo", "agent_08_putaway_delays",
+                       "agent_09_missing_inventory", "agent_10_skips_stocktake",
+                       "agent_11_audit_scores", "agent_12_bt_pending_pick"}
     for aid, name, cadence in AGENTS:
         meta = latest_run(aid) or {}
         primary = PRIMARY_SUB.get(aid)
-        sub_filter = " AND sub_tab = ?" if primary else " AND (sub_tab IS NULL OR sub_tab = '')"
-        args = [aid] + ([primary] if primary else [])
+        if primary:
+            sub_filter = " AND sub_tab = ?"
+            args = [aid, primary]
+        elif aid in NULL_SUB_AGENTS:
+            sub_filter = " AND (sub_tab IS NULL OR sub_tab = '')"
+            args = [aid]
+        else:
+            sub_filter = ""  # count across all sub_tabs (mutually-exclusive universes)
+            args = [aid]
         with conn() as c:
             counts = c.execute(
                 f"""SELECT
@@ -233,6 +268,58 @@ def api_run_agent(agent_id):
         }), 500
     except subprocess.TimeoutExpired:
         return jsonify({"ok": False, "error": "agent run timed out"}), 504
+
+
+@app.post("/api/agents/run-all")
+def api_run_all_agents():
+    """run every agent × geo in parallel. wall-clock dominated by slowest pair (~60-180s).
+    geos: `?geos=ae,sa` (default ae+sa). agents that are ae-only by design
+    (attendance, iph_pickers, fefo) early-return for non-ae and finish in ms.
+    geo is passed to each subprocess via AGENT_GEO env var (read by Agent.__init__).
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    geos_param = request.args.get("geos", "ae,sa,eg")
+    geos = [g.strip().lower() for g in geos_param.split(",") if g.strip()]
+    valid = {"ae", "sa", "eg"}
+    geos = [g for g in geos if g in valid] or ["ae"]
+
+    def _run(agent_id, geo):
+        env = os.environ.copy()
+        env["AGENT_GEO"] = geo
+        try:
+            out = subprocess.check_output(
+                [sys.executable, "-m", f"agents.{agent_id}"],
+                cwd=ROOT, stderr=subprocess.STDOUT, timeout=300, env=env,
+            )
+            tail = out.decode("utf-8", errors="replace").splitlines()[-1:] or [""]
+            return {"agent_id": agent_id, "geo": geo, "ok": True, "tail": tail[0][:200]}
+        except subprocess.CalledProcessError as e:
+            return {"agent_id": agent_id, "geo": geo, "ok": False,
+                    "error": e.output.decode("utf-8", errors="replace")[-300:]}
+        except subprocess.TimeoutExpired:
+            return {"agent_id": agent_id, "geo": geo, "ok": False, "error": "timed out (300s)"}
+        except Exception as e:
+            return {"agent_id": agent_id, "geo": geo, "ok": False,
+                    "error": f"{type(e).__name__}: {e}"}
+
+    started = datetime.now()
+    results = []
+    pairs = [(a[0], g) for a in AGENTS for g in geos]
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        futs = [ex.submit(_run, aid, g) for (aid, g) in pairs]
+        for fut in as_completed(futs):
+            results.append(fut.result())
+    elapsed = (datetime.now() - started).total_seconds()
+    okc = sum(1 for r in results if r["ok"])
+    return jsonify({
+        "ok": okc == len(results),
+        "geos": geos,
+        "total": len(results),
+        "ok_count": okc,
+        "elapsed_seconds": round(elapsed, 1),
+        "results": results,
+    })
 
 
 # ── routing ───────────────────────────────────────────────────────────────────
@@ -312,11 +399,207 @@ def api_thresholds(agent_id):
 @app.get("/api/platform_health")
 def api_platform_health():
     country = request.args.get("country", "ae").lower()
+    # support ?nocache=1 to invalidate BOTH the in-process cache AND the persistent
+    # state.db query_cache for this country. dashboard refresh button uses this so
+    # clicks actually re-hit BQ instead of returning 15-min-old cached numbers.
+    if request.args.get("nocache"):
+        from api.lib import platform_health as _ph
+        for k in list(_ph._CACHE.keys()):
+            if k.endswith(f"_{country}"):
+                _ph._invalidate(key=k)
     return jsonify(platform_health_metrics(country))
+
+
+# ── action plan (separate tab; main dashboard untouched) ─────────────────────
+@app.get("/actions")
+def actions_page():
+    """serve the action plan html for morpheus. regenerates fresh on each hit
+    (cheap; reads alert_log + owners.yaml)."""
+    from flask import send_file as _send_file, abort as _abort
+    country = request.args.get("country")
+    if country:
+        country = country.lower()
+        if country not in ("uae", "ksa"):
+            return _abort(400, "country must be uae or ksa or omitted")
+    min_tier = int(request.args.get("min_tier") or 2)
+    hours = int(request.args.get("hours") or 168)
+
+    try:
+        sys.path.insert(0, ROOT)
+        from morpheus_action_plan import build_action_plan, render_html
+        plan = build_action_plan(country=country, min_tier=min_tier, hours=hours)
+        html_str = render_html(plan)
+        out_path = os.path.join(ROOT, "dashboard", "morpheus-action-plan.html")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(html_str)
+        return _send_file(out_path)
+    except Exception as e:
+        return f"<pre>action plan generation failed:\n{e}</pre>", 500
+
+
+@app.post("/api/actions/take")
+def api_actions_take():
+    """3-mode action dispatcher. body: {action, recipient, country?}"""
+    try:
+        sys.path.insert(0, ROOT)
+        from action_layer import actions as al_actions
+        from morpheus_action_plan import build_action_plan
+    except Exception as e:
+        return jsonify({"error": f"action_layer import failed: {e}"}), 500
+
+    payload = request.get_json(silent=True) or {}
+    action_type = payload.get("action")
+    recipient = payload.get("recipient")
+    country = (payload.get("country") or "").lower() or None
+    if action_type not in ("email", "whatsapp", "copy"):
+        return jsonify({"error": f"invalid action: {action_type}"}), 400
+    if not recipient:
+        return jsonify({"error": "recipient required"}), 400
+    if country == "all":
+        country = None
+
+    plan = build_action_plan(country=country, min_tier=2)
+    by = plan["by_recipient"].get(recipient)
+    if not by:
+        return jsonify({"error": f"recipient {recipient} not found in current plan"}), 404
+    name = (by.get("recipient") or {}).get("name")
+    try:
+        result = al_actions.take_action(action_type, recipient, by["alerts"], recipient_name=name)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── morpheus static snapshot rebuild ─────────────────────────────────────────
+# called from the static dashboard's refresh button: re-runs the generator
+# (outputs/Morpheus/generate_static.py) which fetches a fresh per-country
+# snapshot from flask and rewrites the canonical commandcenter html.
+# the dashboard reload()s after this returns 200 so the user sees fresh data.
+@app.post("/api/morpheus/regenerate-static")
+def api_morpheus_regenerate_static():
+    gen = r"C:\Users\vnagar\Documents\Claude\outputs\Morpheus\generate_static.py"
+    if not os.path.exists(gen):
+        return jsonify({"ok": False, "error": f"generator not found: {gen}"}), 500
+    started = datetime.now()
+    try:
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        out = subprocess.check_output(
+            [sys.executable, gen], stderr=subprocess.STDOUT, timeout=180, env=env,
+        )
+        tail = out.decode("utf-8", errors="replace").splitlines()[-3:]
+        return jsonify({
+            "ok": True,
+            "elapsed_seconds": round((datetime.now() - started).total_seconds(), 1),
+            "tail": tail,
+        })
+    except subprocess.CalledProcessError as e:
+        return jsonify({"ok": False,
+                        "error": e.output.decode("utf-8", errors="replace")[-500:]}), 500
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "error": "regenerate timed out (180s)"}), 504
+
+
+# ── oracle static snapshot rebuild ───────────────────────────────────────────
+# parallel to morpheus regenerate-static. called from the static oracle file's
+# refresh button so it can actually refresh in-place: re-runs the bq snapshot
+# for the active country (or all 3), then re-runs outputs/Oracle/generate_static.py
+# to rewrite the canonical oracle_gm_cockpit.html with fresh data. dashboard
+# reload()s after this returns 200.
+@app.post("/api/oracle/regenerate-static")
+def api_oracle_regenerate_static():
+    country = (request.args.get("country") or "").lower()
+    gen = r"C:\Users\vnagar\Documents\Claude\outputs\Oracle\generate_static.py"
+    if not os.path.exists(gen):
+        return jsonify({"ok": False, "error": f"generator not found: {gen}"}), 500
+    started = datetime.now()
+    env = os.environ.copy()
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    env.setdefault("BQ_BILLING_PROJECT", "noonbinimops")
+    # step 1: BQ snapshot refresh for the active country (or all 3 if unspecified)
+    snapshot_cmd = [sys.executable, "-m", "oracle_gm.snapshot"]
+    if country in ("ae", "sa", "eg"):
+        snapshot_cmd += ["--country", country]
+    try:
+        subprocess.check_output(
+            snapshot_cmd, cwd=ROOT, env=env, stderr=subprocess.STDOUT, timeout=600,
+        )
+    except subprocess.CalledProcessError as e:
+        return jsonify({"ok": False, "step": "snapshot",
+                        "error": e.output.decode("utf-8", errors="replace")[-500:]}), 500
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "step": "snapshot", "error": "snapshot timed out (600s)"}), 504
+    # step 2: regenerate the static file with the now-fresh BQ data
+    try:
+        out = subprocess.check_output(
+            [sys.executable, gen], stderr=subprocess.STDOUT, timeout=180, env=env,
+        )
+        tail = out.decode("utf-8", errors="replace").splitlines()[-3:]
+        return jsonify({
+            "ok": True,
+            "country": country or "all",
+            "elapsed_seconds": round((datetime.now() - started).total_seconds(), 1),
+            "tail": tail,
+        })
+    except subprocess.CalledProcessError as e:
+        return jsonify({"ok": False, "step": "regenerate",
+                        "error": e.output.decode("utf-8", errors="replace")[-500:]}), 500
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "step": "regenerate", "error": "regenerate timed out (180s)"}), 504
+
+
+# ── agent_05 raw complaint export (CSV) ──────────────────────────────────────
+@app.get("/api/agents/agent_05_defects/export")
+def api_defects_export():
+    """return raw complaint rows for a ds_code as CSV. used by the dashboard CSV button."""
+    import csv, io
+    from datetime import date
+    from api.lib.bigquery_client import run as bq_run
+    ds_code = request.args.get("ds_code", "").strip()
+    target  = request.args.get("date", date.today().isoformat())
+    if not ds_code:
+        return jsonify({"ok": False, "error": "ds_code required"}), 400
+    sql = f"""
+    SELECT
+      order_nr, complain_date, complain_category, complain_reason,
+      minutes_category_new AS category,
+      partner_wh_code AS ds_code
+    FROM `noonbinimksa.darkstore.complains_raw_all`
+    WHERE complain_date = DATE('{target}')
+      AND country_code   = 'ae'
+      AND partner_wh_code = '{ds_code}'
+    ORDER BY complain_category, complain_reason
+    """
+    try:
+        rows = bq_run(sql)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+    if not rows:
+        return jsonify({"ok": False, "error": "no rows found"}), 404
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    from flask import Response
+    return Response(
+        buf.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=defects_{ds_code}_{target}.csv"}
+    )
+
+
+# ── dashboard static serve ────────────────────────────────────────────────────
+@app.get("/")
+def serve_dashboard():
+    from flask import send_file as _sf
+    html = os.path.normpath(os.path.join(ROOT, "dashboard", "morpheus-dsops_commandcenter.html"))
+    return _sf(html)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     init_db()
     print("nim-agents-ops backend on http://localhost:5001")
+    print("  main dashboard:   http://localhost:5001/  (unchanged)")
+    print("  action plan tab:  http://localhost:5001/actions")
     app.run(host="127.0.0.1", port=5001, debug=False)

@@ -1,4 +1,4 @@
-"""
+﻿"""
 nim-agents-ops api/lib/db.py
 
 sqlite schema for state.db. mirrors nim-agents-sc but with the ops-ds
@@ -14,8 +14,20 @@ DB_PATH = os.path.join(ROOT, "state.db")
 
 @contextmanager
 def conn():
-    c = sqlite3.connect(DB_PATH)
+    c = sqlite3.connect(DB_PATH, timeout=30.0)  # 30s busy-timeout for concurrent writes
     c.row_factory = sqlite3.Row
+    # WAL mode: readers don't block writers and writers don't block readers.
+    # Critical when oracle snapshot, morpheus run-all, and platform_health
+    # all hit state.db at once (per /pulse plan 2026-05-11).
+    # PRAGMA is per-connection but journal_mode persists at the file level —
+    # first connection that sets it sticks. Idempotent.
+    try:
+        c.execute("PRAGMA journal_mode=WAL")
+        c.execute("PRAGMA synchronous=NORMAL")  # WAL-safe, ~10x faster than FULL
+    except sqlite3.OperationalError:
+        # if another process is currently holding an exclusive lock the PRAGMA
+        # may fail transiently; that's fine, the mode is already set on the file.
+        pass
     try:
         yield c
     finally:
@@ -122,7 +134,66 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_actions_dedup
           ON actions(agent, row_key, action_type, created_at);
+
+        /* persistent BQ query cache — survives flask restart so first hit
+           after restart doesn't pay BQ round-trip latency. Per /pulse plan
+           2026-05-11. Default TTL 900s (15 min) — bumped from 300s. */
+        CREATE TABLE IF NOT EXISTS query_cache (
+            cache_key TEXT PRIMARY KEY,
+            value_json TEXT NOT NULL,
+            fetched_at REAL NOT NULL,
+            ttl_seconds INTEGER NOT NULL DEFAULT 900
+        );
+        CREATE INDEX IF NOT EXISTS idx_cache_age
+          ON query_cache(fetched_at);
         """)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# query_cache helpers (persistent layer for platform_health._cached etc.)
+# ──────────────────────────────────────────────────────────────────────────────
+def cache_get(key, ttl_seconds=900):
+    """return cached value for key if fresher than ttl_seconds, else None.
+    silently returns None on any error (cache is best-effort, never fatal)."""
+    import time
+    try:
+        with conn() as c:
+            r = c.execute(
+                "SELECT value_json, fetched_at FROM query_cache WHERE cache_key=?",
+                (key,)
+            ).fetchone()
+            if not r:
+                return None
+            if time.time() - r["fetched_at"] > ttl_seconds:
+                return None
+            return json.loads(r["value_json"])
+    except Exception:
+        return None
+
+
+def cache_set(key, value, ttl_seconds=900):
+    """upsert a cached value. silently swallows errors."""
+    import time
+    try:
+        with conn() as c:
+            c.execute(
+                "INSERT OR REPLACE INTO query_cache (cache_key, value_json, fetched_at, ttl_seconds) VALUES (?,?,?,?)",
+                (key, json.dumps(value, default=str), time.time(), ttl_seconds)
+            )
+    except Exception:
+        pass
+
+
+def cache_invalidate(prefix=None, key=None):
+    """invalidate by exact key or by prefix (e.g. all entries starting with 'pct_defects_')."""
+    try:
+        with conn() as c:
+            if key:
+                c.execute("DELETE FROM query_cache WHERE cache_key=?", (key,))
+            elif prefix:
+                c.execute("DELETE FROM query_cache WHERE cache_key LIKE ?", (prefix + "%",))
+    except Exception:
+        pass
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -144,6 +215,40 @@ def log_alert(agent, row_key, tier, *, sub_tab=None, ds_code=None,
              json.dumps(payload, default=str) if payload else None,
              draft_id, status)
         )
+
+
+def upsert_alert(agent, row_key, tier, *, sub_tab=None, ds_code=None,
+                 vendor_shortcode=None, metric_name=None, metric_value=None,
+                 contribution_pct=None, payload=None, status="breach"):
+    """update payload + metric on existing same-day alert; insert if none exists.
+    draft_id and status are preserved on existing rows so drafted alerts aren't reset."""
+    payload_json = json.dumps(payload, default=str) if payload else None
+    today = datetime.now().date().isoformat()
+    with conn() as c:
+        existing = c.execute(
+            "SELECT id, draft_id, status FROM alert_log "
+            "WHERE agent=? AND row_key=? AND DATE(drafted_at)=? LIMIT 1",
+            (agent, row_key, today)
+        ).fetchone()
+        if existing:
+            c.execute(
+                """UPDATE alert_log SET
+                   tier=?, metric_value=?, contribution_pct=?, payload_json=?,
+                   drafted_at=datetime('now')
+                   WHERE id=?""",
+                (tier, metric_value, contribution_pct, payload_json, existing["id"])
+            )
+        else:
+            c.execute(
+                """INSERT INTO alert_log
+                (agent, sub_tab, ds_code, vendor_shortcode, row_key, tier,
+                 metric_name, metric_value, contribution_pct, payload_json,
+                 draft_id, status)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (agent, sub_tab, ds_code, vendor_shortcode, row_key, tier,
+                 metric_name, metric_value, contribution_pct, payload_json,
+                 None, status)
+            )
 
 
 def was_alerted_recently(agent, row_key, hours=48):

@@ -1,4 +1,4 @@
-"""
+﻿"""
 agent 5 — defects (customer complaints)
 
 per vardan 2026-04-29: ds-level overall defect rate (NOT sub-tabbed by reason).
@@ -28,6 +28,36 @@ from api.lib.bigquery_client import run as bq_run
 
 def _query(target_date, country):
     table = "complains_raw_all" if country in ("ae", "eg") else "complains_raw_sa"
+    # complains_raw_sa lacks `minutes_category_new` (the canonical column lives in complains_raw_all).
+    # for ksa we drop the dairy/milk breakdown — it's a payload-only column, not used in tiering.
+    dairy_milk_expr = (
+        "SUM(CASE WHEN complain_reason IN ('quality_not_fresh','ProductQuality_FungusorMold','bad_quality_item',"
+        "'Presence_of_Foreign_Substance','Pest_Infestation','Presence_of_Worms') "
+        "AND LOWER(minutes_category_new) IN ('milk','dairy & eggs') THEN 1 ELSE 0 END)"
+        if country in ("ae", "eg") else "0"
+    )
+
+    # ipp_daily_sa lacks `total_orders` (only ipp_daily_ae has it).
+    # for ksa, denominator comes from odr_gmv_ksa_today.orders (per-ds today count).
+    if country == "ae":
+        orders_cte = (
+            "SELECT b.partner_Wh_code AS ds_code, SUM(a.order_cnt) AS orders "
+            "FROM `noonbinimksa.darkstore.odr_uae_bh` a "
+            "LEFT JOIN `noondwh.instant_instant_order.warehouse` b ON a.wh_code = b.wh_code "
+            f"WHERE LOWER(a.country_code) = 'ae' AND a.created_date = DATE('{target_date}') "
+            "GROUP BY b.partner_Wh_code"
+        )
+    else:
+        # ksa: today's orders are in odr_gmv_ksa_today; D-1 and older are in odr_gmv_ksa_last30
+        from datetime import date as _d
+        is_today = str(target_date) == _d.today().isoformat()
+        gmv_table = "odr_gmv_ksa_today" if is_today else "odr_gmv_ksa_last30"
+        orders_cte = (
+            "SELECT partner_Wh_code AS ds_code, SUM(orders) AS orders "
+            f"FROM `noonbinimksa.darkstore.{gmv_table}` "
+            f"WHERE order_date = DATE('{target_date}') GROUP BY partner_Wh_code"
+        )
+
     return f"""
     WITH d AS (
       SELECT
@@ -50,19 +80,14 @@ def _query(target_date, country):
                  THEN 1 ELSE 0 END) AS def_expired_items,
         SUM(CASE WHEN complain_reason IN ('Limited_shelf_life','item_near_expiry','near_expiry','warranty_near_expiry')
                  THEN 1 ELSE 0 END) AS def_near_expiry,
-        SUM(CASE WHEN complain_reason IN ('quality_not_fresh','ProductQuality_FungusorMold','bad_quality_item','Presence_of_Foreign_Substance','Pest_Infestation','Presence_of_Worms')
-                  AND LOWER(minutes_category_new) IN ('milk','dairy & eggs')
-                 THEN 1 ELSE 0 END) AS def_dairy_milk_quality
+        {dairy_milk_expr} AS def_dairy_milk_quality
       FROM `noonbinimksa.darkstore.{table}`
       WHERE complain_date = DATE('{target_date}')
         AND country_code = '{country}'
       GROUP BY partner_wh_code
     ),
     o AS (
-      SELECT store AS ds_code, SUM(total_orders) AS orders
-      FROM `noonbinimksa.darkstore.ipp_daily_{country}`
-      WHERE date = DATE('{target_date}')
-      GROUP BY store
+      {orders_cte}
     )
     SELECT
       d.ds_code,
@@ -92,7 +117,7 @@ class DefectsAgent(Agent):
             metric_field="defect_rate_pct", count_field="def_orders",
             floor=0.50,
             t3_metric=0.80, t2_metric=0.60, t1_metric=0.50,
-            min_count_for_tier=3, use_or_logic=False, worst_n_floor=5,
+            min_count_for_tier=3, use_or_logic=False, worst_n_floor=200,
         )
 
 

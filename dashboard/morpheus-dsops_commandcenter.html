@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -6,91 +6,263 @@
 <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="pragma" content="no-cache">
 <meta http-equiv="expires" content="0">
-<title>morpheus · ds ops command center · v2026-04-30h</title>
+<title>morpheus · ds ops command center · v2026-05-01g</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #f5f6f8; --card: #fff; --border: #e5e7eb; --border-strong: #d1d5db;
-    --muted: #6b7280; --muted2: #9ca3af; --text: #1f2937;
-    --t1: #2563eb; --t1-bg: #eff6ff;
-    --t2: #d97706; --t2-bg: #fffbeb;
-    --t3: #dc2626; --t3-bg: #fef2f2;
-    --ok: #16a34a; --ok-bg: #f0fdf4;
-    --accent: #4338ca; --accent-bg: #eef2ff;
+    /* ink design system — dark editorial */
+    --bg:#0a0d12; --surface:#10141b; --surface2:#161b24; --card:#10141b;
+    --border:#1f2530; --border-strong:#2a3140;
+    --text:#f4f1ea; --text2:#b8bdc7; --muted:#7a8599; --muted2:#7a8599; --muted3:#4a5266;
+    --accent:#a89a72; --accent-lt:rgba(168,154,114,.12); --accent-md:rgba(168,154,114,.20); --accent-bg:rgba(168,154,114,.12);
+    --green:#5a8c6e; --green-bg:rgba(90,140,110,.14); --ok:#5a8c6e; --ok-bg:rgba(90,140,110,.14);
+    --amber:#c4a05a; --amber-bg:rgba(196,160,90,.14);
+    --red:#c25a5e; --red-bg:rgba(194,90,94,.14);
+    --t1:#7a8599; --t1-bg:rgba(122,133,153,.14);
+    --t2:#c4a05a; --t2-bg:rgba(196,160,90,.14);
+    --t3:#c25a5e; --t3-bg:rgba(194,90,94,.14);
+    --ink:#0a0d12; --ink-line:#1f2530; --ink-text:#f4f1ea; --ink-text2:#7a8599;
+    --sans:'Inter Tight', system-ui, sans-serif;
+    --mono:'JetBrains Mono', ui-monospace, monospace;
+    --r-sm:2px; --r-md:2px; --r-lg:2px;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; font-family: "DM Sans", system-ui, sans-serif; font-size: 13px;
+    margin: 0; font-family: var(--sans); font-size: 13px;
     color: var(--text); background: var(--bg); line-height: 1.5;
+    font-feature-settings: "tnum";
   }
   a { color: inherit; }
   .page { display: flex; flex-direction: column; min-height: 100vh; }
+  /* topbar refresh button — re-runs all agents */
+  .refresh-all-btn{background:transparent;border:1px solid var(--ink-line,#2a3138);color:var(--ink-text,#cfd6df);font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.14em;padding:7px 12px;cursor:pointer;border-radius:4px;transition:all .12s}
+  .refresh-all-btn:hover:not(:disabled){color:var(--ink-accent,#a89a72);border-color:var(--ink-accent,#a89a72)}
+  .refresh-all-btn:disabled{cursor:wait;opacity:.7}
+  .refresh-all-btn.running{border-color:var(--ink-accent,#a89a72);color:var(--ink-accent,#a89a72)}
+  /* topbar geo toggle (uae / ksa / egypt) — sits to the LEFT of theme/refresh
+     so it doesn't collide with the refresh button. inline-flex, mono, ink-accent on active */
+  .geo-toggle{display:inline-flex;gap:4px;border:1px solid var(--ink-line,#2a3138);border-radius:4px;padding:2px;background:transparent}
+  .geo-toggle button{background:transparent;border:0;color:var(--ink-text2,#8a93a3);font:600 10.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.12em;padding:6px 10px;cursor:pointer;border-radius:2px;transition:all .12s}
+  .geo-toggle button:hover{color:var(--ink-text,#cfd6df)}
+  .geo-toggle button.active{background:var(--ink-accent,#a89a72);color:var(--ink,#0b1220)}
+
+  /* topbar — slim, ink, brief-conformant */
   header.topbar {
-    background: #111827; color: #fff; padding: 14px 24px;
-    display: flex; align-items: center; justify-content: space-between;
+    background: var(--ink); color: var(--ink-text); padding: 12px 22px;
+    display: flex; align-items: center; justify-content: space-between; gap: 18px;
   }
-  header.topbar h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
-  header.topbar .meta { font-size: 11px; color: var(--muted2); }
-  header.topbar .meta .dot {
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .logo-tile {
+    width: 26px; height: 26px; border-radius: var(--r-sm); background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--bg); font-weight: 700; font-size: 14px; flex-shrink: 0;
+  }
+  .product-name { font-size: 14px; font-weight: 600; line-height: 1.2; color: var(--ink-text); }
+  .product-sub { font-size: 11px; color: var(--ink-text2); font-family: var(--mono); margin-top: 1px; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .topbar-right .region {
+    font-size: 11px; color: var(--ink-text2); font-family: var(--mono);
+    text-transform: lowercase;
+  }
+  .topbar-right .clock {
+    font-size: 11px; color: var(--ink-text); font-family: var(--mono);
+    text-transform: lowercase;
+  }
+  .legend { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--ink-text2); }
+  .legend .pill { background: transparent; border-width: 1px; }
+  .legend-text { margin-right: 6px; color: var(--ink-text2); }
+  .meta { font-size: 11px; color: var(--ink-text2); font-family: var(--mono); }
+  .meta .dot {
     display: inline-block; width: 8px; height: 8px;
     border-radius: 50%; margin-right: 4px; vertical-align: middle;
   }
-  .dot.ok { background: var(--ok); }
-  .dot.dead { background: var(--t3); }
-  .crumb { padding: 12px 24px 0; font-size: 11px; color: var(--muted); }
+  .dot.ok { background: var(--green); }
+  .dot.dead { background: var(--red); }
+  /* hero band — dark, directly below topbar */
+  .hero {
+    background: var(--ink); color: var(--ink-text);
+    padding: 22px 24px 18px;
+    border-top: 1px solid var(--ink-line);
+    display: grid; grid-template-columns: 1fr auto; gap: 28px; align-items: end;
+    min-height: 200px;
+  }
+  .hero-left { display: flex; flex-direction: column; gap: 12px; }
+  .hero-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; font-family: var(--mono); color: var(--ink-text2);
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .hero-status .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .hero-status .word { color: var(--ink-text); }
+  .hero-headline {
+    font-size: 22px; font-weight: 500; line-height: 1.32;
+    max-width: 760px; text-wrap: pretty; color: var(--ink-text);
+  }
+  .hero-foot {
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    font-size: 11px; font-family: var(--mono); color: var(--ink-text2);
+    border-top: 1px solid var(--ink-line); padding-top: 10px; margin-top: 6px;
+  }
+  .hero-foot .breach { display: flex; align-items: center; gap: 6px; }
+  .hero-foot .breach .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .hero-foot .breach.t3 .dot { background: var(--red); }
+  .hero-foot .breach.t2 .dot { background: var(--amber); }
+  .hero-foot .breach.t1 .dot { background: var(--t1); }
+  .hero-foot .last-action { margin-left: auto; }
+  .hero-right { text-align: right; min-width: 260px; }
+  .hero-kpi-label {
+    font-size: 11px; font-family: var(--mono); color: var(--ink-text2);
+    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;
+  }
+  .hero-kpi-value {
+    font-size: 56px; font-weight: 600; line-height: 1; color: var(--ink-text);
+    font-feature-settings: "tnum";
+  }
+  .hero-kpi-delta {
+    font-size: 13px; font-family: var(--mono); color: var(--ink-text2);
+    margin-top: 6px;
+  }
+  .hero-kpi-delta.up { color: var(--red); }
+  .hero-kpi-delta.down { color: var(--green); }
+  .hero-kpi-risk {
+    font-size: 28px; font-weight: 600; color: var(--ink-text); margin-top: 4px;
+  }
+  .hero-kpi-risk-label {
+    font-size: 10px; font-family: var(--mono); color: var(--ink-text2);
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  /* breadcrumb */
+  .crumb { padding: 10px 24px 0; font-size: 11px; color: var(--muted); font-family: var(--mono); }
   .crumb a { color: var(--accent); cursor: pointer; }
   .crumb a:hover { text-decoration: underline; }
-  main { flex: 1; padding: 16px 24px 40px; overflow: auto; }
-  .agents-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  /* section labels — uppercase + horizontal rule */
+  .section-label {
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted2);
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 24px 10px;
+  }
+  .section-label::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  main { flex: 1; padding: 0 24px 40px; overflow: auto; }
+  /* agent grid — 2 columns on laptop */
+  .agents-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+  }
+  /* agent card — unified anatomy */
   .agent-tile {
-    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-    padding: 16px 18px; cursor: pointer; transition: all 0.15s;
-    display: flex; flex-direction: column; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+    padding: 16px; cursor: pointer; transition: all 0.15s;
+    display: flex; flex-direction: column; gap: 12px;
+    box-shadow: none;
   }
   .agent-tile:hover {
     border-color: var(--accent); transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(67, 56, 202, 0.08);
+    box-shadow: 0 0 0 1px var(--accent-md);
   }
-  .agent-tile.t3 { border-left: 3px solid var(--t3); }
-  .agent-tile.t2 { border-left: 3px solid var(--t2); }
+  .agent-tile.t3 { border-left: 3px solid var(--red); }
+  .agent-tile.t2 { border-left: 3px solid var(--amber); }
   .agent-tile.t1 { border-left: 3px solid var(--t1); }
-  .agent-tile.idle { border-left: 3px solid var(--ok); }
-  .agent-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-  .agent-name { font-size: 13px; font-weight: 600; margin: 0; line-height: 1.3; }
-  .agent-cadence { font-size: 10px; color: var(--muted2); margin-top: 2px; text-transform: lowercase; }
-  .agent-arrow { color: var(--muted2); font-size: 14px; }
+  .agent-tile.idle { border-left: 3px solid var(--green); }
+  /* card header row */
+  .agent-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .agent-head-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+  .agent-icon {
+    width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; font-family: var(--mono);
+  }
+  .agent-tile.t3 .agent-icon { background: var(--red-bg); color: var(--red); }
+  .agent-tile.t2 .agent-icon { background: var(--amber-bg); color: var(--amber); }
+  .agent-tile.t1 .agent-icon { background: var(--t1-bg); color: var(--t1); }
+  .agent-tile.idle .agent-icon { background: var(--green-bg); color: var(--green); }
+  .agent-head-text { min-width: 0; flex: 1; }
+  .agent-name {
+    font-size: 14px; font-weight: 600; margin: 0; line-height: 1.25;
+    text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+  }
+  .agent-cadence {
+    font-size: 11px; color: var(--muted2); margin-top: 2px;
+    font-family: var(--mono); text-transform: lowercase;
+  }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 9px; border-radius: 12px; font-size: 10.5px; font-weight: 500;
+    text-transform: lowercase; flex-shrink: 0;
+  }
+  .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .status-pill.t3 { background: var(--red-bg); color: var(--red); }
+  .status-pill.t3 .dot { background: var(--red); }
+  .status-pill.t2 { background: var(--amber-bg); color: var(--amber); }
+  .status-pill.t2 .dot { background: var(--amber); }
+  .status-pill.t1 { background: var(--t1-bg); color: var(--t1); }
+  .status-pill.t1 .dot { background: var(--t1); }
+  .status-pill.idle { background: var(--green-bg); color: var(--green); }
+  .status-pill.idle .dot { background: var(--green); }
+  /* card tier row + secondary metric */
   .tier-row {
-    display: flex; gap: 10px;
+    display: flex; gap: 14px; align-items: center;
     border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
-    padding: 10px 0;
+    padding: 12px 0;
   }
-  .tier-block { flex: 1; text-align: left; }
+  .tier-blocks { display: flex; gap: 16px; flex: 1; }
+  .tier-block { text-align: left; }
   .tier-block .label {
-    font-size: 9px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.06em; color: var(--muted2); margin-bottom: 2px;
+    font-size: 9.5px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--muted2); margin-bottom: 4px;
   }
-  .tier-block .value { font-size: 18px; font-weight: 600; line-height: 1; }
-  .tier-block.t3 .value { color: var(--t3); }
-  .tier-block.t2 .value { color: var(--t2); }
+  .tier-block .value {
+    font-size: 18px; font-weight: 600; line-height: 1; font-feature-settings: "tnum";
+  }
+  .tier-block.t3 .value { color: var(--red); }
+  .tier-block.t2 .value { color: var(--amber); }
   .tier-block.t1 .value { color: var(--t1); }
-  .agent-breaches { font-size: 11.5px; color: var(--muted); }
+  .secondary-metric {
+    text-align: right; min-width: 0; flex-shrink: 0;
+  }
+  .secondary-metric .label {
+    font-size: 10px; color: var(--muted2); text-transform: lowercase;
+    font-family: var(--mono); margin-bottom: 3px;
+  }
+  .secondary-metric .value {
+    font-size: 16px; font-weight: 600; line-height: 1; font-feature-settings: "tnum";
+  }
+  /* card breaches list */
+  .agent-breaches { font-size: 12px; color: var(--muted); }
   .agent-breaches .label {
-    font-size: 9px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.06em; color: var(--muted2); margin-bottom: 5px;
+    font-size: 9.5px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--muted2); margin-bottom: 6px;
   }
   .agent-breaches .br {
-    display: flex; gap: 6px; align-items: center; padding: 2px 0; font-size: 11px;
+    display: flex; gap: 8px; align-items: center; padding: 3px 0; font-size: 11.5px;
   }
+  .agent-breaches .br .entity {
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .agent-breaches .br .meta {
+    font-family: var(--mono); font-feature-settings: "tnum"; color: var(--muted2);
+  }
+  /* freshness footer */
+  .agent-foot {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10px; color: var(--muted2); font-family: var(--mono);
+    text-transform: lowercase;
+    border-top: 1px solid var(--border); padding-top: 10px; margin-top: auto;
+  }
+  .agent-foot .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .agent-foot .dot.ok { background: var(--green); }
+  .agent-foot .dot.warn { background: var(--amber); }
+  .agent-foot .dot.dead { background: var(--red); }
+  /* tier pill */
   .pill {
     display: inline-block; padding: 1px 7px; border-radius: 10px;
     font-size: 9.5px; font-weight: 600; border: 1px solid; flex-shrink: 0;
+    font-family: var(--mono);
   }
-  .pill.t3 { color: var(--t3); border-color: var(--t3); background: var(--t3-bg); }
-  .pill.t2 { color: var(--t2); border-color: var(--t2); background: var(--t2-bg); }
+  .pill.t3 { color: var(--red); border-color: var(--red); background: var(--red-bg); }
+  .pill.t2 { color: var(--amber); border-color: var(--amber); background: var(--amber-bg); }
   .pill.t1 { color: var(--t1); border-color: var(--t1); background: var(--t1-bg); }
-  .agent-foot { font-size: 10px; color: var(--muted2); margin-top: auto; }
 
   .dd-header {
     display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px;
@@ -124,9 +296,11 @@
   }
   .dd-table th {
     font-size: 10px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.05em; color: var(--muted); background: #f9fafb;
+    letter-spacing: 0.05em; color: var(--muted); background: var(--surface2);
     position: sticky; top: 0;
   }
+  .dd-table th.sortable { cursor: pointer; user-select: none; }
+  .dd-table th.sortable:hover { color: var(--accent); background: var(--accent-bg); }
   .dd-table tr:last-child td { border-bottom: none; }
   .dd-table .num { text-align: right; font-variant-numeric: tabular-nums; }
   .dd-table tr.t3 td:first-child { border-left: 3px solid var(--t3); }
@@ -134,8 +308,8 @@
   .dd-table tr.t1 td:first-child { border-left: 3px solid var(--t1); }
   .sub-tabs { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
   .sub-tab {
-    padding: 6px 14px; font-size: 12px; border-radius: 6px;
-    background: #f3f4f6; color: var(--muted);
+    padding: 6px 14px; font-size: 12px; border-radius: var(--r-sm);
+    background: var(--surface2); color: var(--muted);
     cursor: pointer; border: 1px solid transparent;
   }
   .sub-tab.active {
@@ -143,41 +317,89 @@
     border-color: var(--accent); font-weight: 500;
   }
   .draft-btn {
-    background: #fff; border: 1px solid var(--border); border-radius: 4px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
     padding: 3px 8px; font-size: 10px; cursor: pointer; font-family: inherit;
     color: var(--muted);
   }
   .draft-btn:hover { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
   .draft-btn.has-draft { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+  .csv-btn {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+    padding: 3px 8px; font-size: 10px; cursor: pointer; font-family: inherit; color: var(--muted);
+  }
+  .csv-btn:hover { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+  .csv-btn:disabled { opacity: .5; cursor: wait; }
 
-  .bottom-strip {
-    background: #fff; border: 1px solid var(--border); border-radius: 10px;
-    margin: 0 24px 16px; padding: 12px 18px;
-    display: grid; grid-template-columns: repeat(12, 1fr);
-    gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  /* KPI strip — 4 tiles, sparkline + delta + target */
+  .kpi-strip {
+    margin: 0 24px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;
   }
-  .kpi-cell { border-right: 1px solid var(--border); padding-right: 8px; }
-  .kpi-cell:last-child { border-right: none; }
-  .kpi-cell .label {
-    font-size: 9px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.05em; color: var(--muted2); line-height: 1.2;
+  .kpi-tile {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+    padding: 10px 12px 9px; box-shadow: none;
+    display: flex; flex-direction: column; gap: 4px; position: relative;
+    min-height: 78px;
   }
-  .kpi-cell .value {
-    font-size: 16px; font-weight: 600; margin-top: 2px;
-    line-height: 1.1; font-variant-numeric: tabular-nums;
+  .kpi-tile .label {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--muted2); line-height: 1.2;
   }
-  .kpi-cell .sub { font-size: 9.5px; color: var(--muted2); margin-top: 1px; }
-  .empty { font-size: 11px; color: var(--muted2); padding: 20px; text-align: center; }
+  .kpi-tile .value-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .kpi-tile .value {
+    font-size: 24px; font-weight: 600; line-height: 1; font-feature-settings: "tnum";
+  }
+  .kpi-tile .sub {
+    font-size: 10px; font-family: var(--mono); color: var(--muted2);
+    text-transform: lowercase; line-height: 1.3;
+  }
+  .kpi-tile .delta {
+    font-size: 11px; font-family: var(--mono); color: var(--muted2);
+  }
+  .kpi-tile .delta.up { color: var(--red); }
+  .kpi-tile .delta.down { color: var(--green); }
+  .kpi-tile .delta.flat { color: var(--muted2); }
+  .kpi-tile .meta-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-top: 2px;
+  }
+  .kpi-tile .target {
+    font-size: 10.5px; font-family: var(--mono); color: var(--muted2);
+    text-transform: lowercase;
+  }
+  .kpi-tile .spark { width: 70px; height: 24px; flex-shrink: 0; }
+  .kpi-tile .spark path { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+  .empty { font-size: 12px; color: var(--muted2); padding: 28px; text-align: center; }
+  /* mobile breakpoint — 390pt and below */
+  @media (max-width: 760px) {
+    header.topbar { padding: 10px 16px; flex-wrap: wrap; gap: 10px; }
+    .topbar-right { gap: 10px; flex-wrap: wrap; }
+    .topbar-right .legend { display: none; }
+    .hero {
+      grid-template-columns: 1fr; padding: 18px 16px 14px; min-height: 0;
+      gap: 16px;
+    }
+    .hero-right { text-align: left; min-width: 0; }
+    .hero-kpi-value { font-size: 44px; }
+    .hero-kpi-risk { font-size: 22px; }
+    .kpi-strip { grid-template-columns: repeat(2, 1fr); margin: 0 16px; }
+    .kpi-tile .value { font-size: 28px; }
+    .section-label { padding: 14px 16px 8px; }
+    main { padding: 0 16px 28px; }
+    .agents-grid { grid-template-columns: 1fr; gap: 10px; }
+    .agent-tile { padding: 14px; }
+    .status-pill, .draft-btn, .sub-tab { min-height: 32px; }
+  }
 
   /* draft preview modal */
   .modal-bg {
-    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5);
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7);
     display: flex; align-items: center; justify-content: center; z-index: 200;
   }
   .modal {
-    background: #fff; border-radius: 10px; width: min(720px, 92vw);
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); width: min(720px, 92vw);
     max-height: 88vh; display: flex; flex-direction: column;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.18); overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6); overflow: hidden;
   }
   .modal-head {
     padding: 14px 18px; border-bottom: 1px solid var(--border);
@@ -192,50 +414,180 @@
     letter-spacing: 0.06em; color: var(--muted2); display: block; margin-bottom: 3px;
   }
   .modal input, .modal textarea {
-    width: 100%; border: 1px solid var(--border); border-radius: 6px;
+    width: 100%; border: 1px solid var(--border); border-radius: var(--r-sm);
     padding: 7px 10px; font-family: inherit; font-size: 12.5px;
+    background: var(--bg); color: var(--text);
   }
-  .modal textarea { min-height: 220px; font-family: ui-monospace, monospace; font-size: 11px; }
+  .modal textarea { min-height: 220px; font-family: var(--mono); font-size: 11px; }
   .modal .body-preview {
-    border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;
-    background: #fafbfc; font-size: 12px; max-height: 260px; overflow-y: auto;
+    border: 1px solid var(--border); border-radius: var(--r-sm); padding: 10px 12px;
+    background: var(--surface2); color: var(--text2); font-size: 12px; max-height: 260px; overflow-y: auto;
   }
   .btn-primary, .btn-secondary {
-    padding: 7px 14px; font-size: 12px; border-radius: 6px;
+    padding: 7px 14px; font-size: 12px; border-radius: var(--r-sm);
     cursor: pointer; font-family: inherit; border: 1px solid transparent;
   }
-  .btn-primary { background: var(--accent); color: white; }
-  .btn-primary:hover { background: #3730a3; }
+  .btn-primary { background: var(--accent); color: var(--bg); font-weight: 600; }
+  .btn-primary:hover { background: var(--text); }
   .btn-primary:disabled { opacity: 0.5; cursor: wait; }
-  .btn-secondary { background: #fff; color: var(--text); border-color: var(--border-strong); }
-  .btn-secondary:hover { background: #f9fafb; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border-color: var(--border-strong); }
+  .btn-secondary:hover { background: var(--surface); }
+
+  /* ─── display mode (ink / paper) ─── */
+  :root[data-theme="paper"] {
+    --bg:#faf9f6;
+    --surface:#ffffff; --surface-1:#ffffff; --card:#ffffff;
+    --surface2:#f4f2ec; --surface-2:#f4f2ec; --surface-3:#efebe1;
+    --line:#e6e3dc; --border:#e6e3dc;
+    --line2:#d4d0c5; --border2:#d4d0c5; --border-2:#d4d0c5; --border-strong:#d4d0c5;
+    --text:#1a1a1a;
+    --text2:#3d3d3d; --text-2:#3d3d3d;
+    --text3:#7a7770; --text-3:#7a7770; --muted:#7a7770; --muted2:#7a7770;
+    --text4:#a8a59c; --muted3:#a8a59c;
+    --pos:#3a7a52; --green:#3a7a52; --ok:#3a7a52;
+    --pos-bg:rgba(58,122,82,.08); --green-bg:rgba(58,122,82,.08); --ok-bg:rgba(58,122,82,.08);
+    --green-bd:rgba(58,122,82,.25);
+    --neg:#a8423f; --red:#a8423f;
+    --neg-bg:rgba(168,66,63,.08); --red-bg:rgba(168,66,63,.08);
+    --red-bd:rgba(168,66,63,.25);
+    --warn:#b78420; --amber:#b78420;
+    --warn-bg:rgba(183,132,32,.10); --amber-bg:rgba(183,132,32,.10);
+    --amber-bd:rgba(183,132,32,.25);
+    --accent:#1a1a1a; --accent-2:#3d3d3d;
+    --accent-bg:#f4f2ec; --accent-lt:#f4f2ec; --accent-md:#e6e3dc;
+    --info:#4a6f8a; --approvals:#4a7a82;
+    --grey:#7a7770; --grey-bg:#f4f2ec; --grey-bd:#d4d0c5;
+    --t1:#7a7770; --t1-bg:#f4f2ec;
+    --t2:#b78420; --t2-bg:rgba(183,132,32,.10);
+    --t3:#a8423f; --t3-bg:rgba(168,66,63,.08);
+    --ink:#ffffff; --ink-line:#e6e3dc; --ink-text:#1a1a1a; --ink-text2:#7a7770;
+    --ink-accent:#1a1a1a;
+  }
+  :root[data-theme="paper"] header.topbar,
+  :root[data-theme="paper"] .topbar {
+    background: rgba(250,249,246,0.92) !important;
+    color: var(--text) !important;
+  }
+  .theme-toggle{display:inline-flex;gap:0;background:var(--surface,#fff);border:1px solid var(--line,var(--border,#e6e3dc));border-radius:2px;padding:2px}
+  .theme-toggle button{background:transparent;border:0;color:var(--text3,var(--muted,var(--text-3,#7a7770)));font-family:var(--mono,ui-monospace,monospace);font-size:11px;font-weight:600;padding:6px 12px;cursor:pointer;border-radius:2px;text-transform:uppercase;letter-spacing:.14em;transition:background .15s,color .15s}
+  .theme-toggle button:hover:not(.active){color:var(--text,#1a1a1a);background:var(--surface2,var(--surface-2,#f4f2ec))}
+  .theme-toggle button.active{background:var(--accent,#1a1a1a);color:var(--bg,#faf9f6)}
 </style>
+<script>
+  (function(){
+    var K='morpheus_theme', D='ink';
+    var saved; try{saved=localStorage.getItem(K);}catch(e){}
+    document.documentElement.setAttribute('data-theme', saved||D);
+    window.setTheme=function(t){
+      document.documentElement.setAttribute('data-theme', t);
+      try{localStorage.setItem(K,t);}catch(e){}
+      var btns=document.querySelectorAll('.theme-toggle button');
+      for(var i=0;i<btns.length;i++){btns[i].classList.toggle('active', btns[i].getAttribute('data-theme')===t);}
+    };
+    document.addEventListener('DOMContentLoaded',function(){window.setTheme(saved||D);});
+  })();
+</script>
 </head>
 <body>
 <div class="page">
   <header class="topbar">
-    <div>
-      <h1>morpheus · ds ops command center</h1>
-      <div style="font-size: 10px; color: var(--muted2); margin-top: 2px;">
-        11 agents · uae · cadence-driven
+    <div class="topbar-left">
+      <div class="logo-tile">m</div>
+      <div>
+        <div class="product-name">Morpheus</div>
+        <div class="product-sub">ds ops command center · 11 agents</div>
       </div>
     </div>
-    <div class="meta" id="status">connecting…</div>
+    <div class="topbar-right">
+      <div class="legend">
+        <span class="pill t3">t3</span><span class="legend-text">critical</span>
+        <span class="pill t2">t2</span><span class="legend-text">attention</span>
+        <span class="pill t1">t1</span><span class="legend-text">low</span>
+      </div>
+      <div class="geo-toggle" role="tablist" aria-label="country">
+        <button type="button" role="tab" data-geo="uae" onclick="setGeo('uae')" class="active">uae</button>
+        <button type="button" role="tab" data-geo="ksa" onclick="setGeo('ksa')">ksa</button>
+        <button type="button" role="tab" data-geo="egy" onclick="setGeo('egy')">egypt</button>
+      </div>
+      <div class="theme-toggle" role="tablist" aria-label="Display mode">
+        <button type="button" role="tab" data-theme="ink"   onclick="setTheme('ink')">ink</button>
+        <button type="button" role="tab" data-theme="paper" onclick="setTheme('paper')">paper</button>
+      </div>
+      <div class="clock" id="clock">--:-- gst</div>
+      <div class="meta" id="status">connecting…</div>
+      <button id="refresh-all-btn" class="refresh-all-btn" onclick="triggerRunAll()" title="re-run all 12 agents against bigquery, then reload">refresh</button>
+    </div>
   </header>
+  <section class="hero" id="hero">
+    <div class="hero-left">
+      <div class="hero-status">
+        <span class="dot" id="hero-dot" style="background:var(--muted2)"></span>
+        <span id="hero-subtitle">Morpheus · uae</span>
+        <span>·</span>
+        <span class="word" id="hero-word">loading</span>
+      </div>
+      <div class="hero-headline" id="hero-headline">loading platform health…</div>
+      <div class="hero-foot">
+        <div class="breach t3"><span class="dot"></span><span id="hero-t3">t3 —</span></div>
+        <div class="breach t2"><span class="dot"></span><span id="hero-t2">t2 —</span></div>
+        <div class="breach t1"><span class="dot"></span><span id="hero-t1">t1 —</span></div>
+        <div class="last-action" id="hero-last">last action —</div>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="hero-kpi-label">t3 breaches</div>
+      <div class="hero-kpi-value" id="hero-kpi-value">—</div>
+      <div class="hero-kpi-delta" id="hero-kpi-delta">vs yesterday —</div>
+      <div class="hero-kpi-risk-label" style="margin-top:8px;">at risk</div>
+      <div class="hero-kpi-risk" id="hero-kpi-risk">—</div>
+    </div>
+  </section>
+  <div class="section-label">platform health</div>
+  <div class="kpi-strip" id="strip"></div>
   <div class="crumb" id="crumb"></div>
-  <div class="bottom-strip" id="strip" style="margin-top: 16px;"></div>
   <main id="view"></main>
 </div>
 
 <script>
+let CURRENT_GEO = "uae";
+let CURRENT_CCY = "AED";
+const GEO_TO_CCY = { uae: "AED", ksa: "SAR", egy: "EGP" };
+const GEO_TO_TZ  = { uae: "gst", ksa: "ast", egy: "eet" };
 const API = "http://127.0.0.1:5001/api";
+// frontend uses 3-letter labels (uae/ksa/egy); backend expects 2-letter ISO (ae/sa/eg)
+const GEO_TO_CC = { uae: "ae", ksa: "sa", egy: "eg" };
 
 async function api(path, opts = {}) {
-  const res = await fetch(API + path, {
+  // append the current country (?country=ae|sa|eg) to every GET unless the
+  // caller already encoded one. POSTs (e.g. /agents/run-all) are not country-scoped.
+  const method = (opts.method || "GET").toUpperCase();
+  let url = API + path;
+  if (method === "GET" && CURRENT_GEO && !/\bcountry=/.test(path)) {
+    const cc = GEO_TO_CC[CURRENT_GEO] || "ae";
+    url += (path.includes("?") ? "&" : "?") + "country=" + cc;
+  }
+  const res = await fetch(url, {
     headers: { "Content-Type": "application/json" }, ...opts,
   });
   if (!res.ok) throw new Error(res.status + " " + path);
   return res.json();
+}
+
+// switch country: re-fetch all data with the new country code, refresh UI.
+async function setGeo(geo) {
+  if (!GEO_TO_CC[geo]) return;
+  CURRENT_GEO = geo;
+  CURRENT_CCY = GEO_TO_CCY[geo] || "AED";
+  // active-state on the toggle buttons
+  document.querySelectorAll('.geo-toggle button').forEach(b =>
+    b.classList.toggle('active', b.dataset.geo === geo)
+  );
+  const heroSub = document.getElementById('hero-subtitle');
+  if (heroSub) heroSub.textContent = `Morpheus · ${geo}`;
+  // bust caches + reload everything; bustCache=true makes the next /platform_health
+  // call hit BQ fresh rather than serving the 5-min cached value.
+  agentsCache = null; alertsCache = null; dsRoutingCache = null;
+  await refreshAll({ bustCache: true });
 }
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({
@@ -255,9 +607,8 @@ function fmtInt(v) {
 }
 function fmtMoney(v) {
   if (v === null || v === undefined) return "—";
-  // local currency (lcy): AED for UAE, SAR for KSA, EGP for EGY.
-  // we render "AED" since dashboard is uae-only in phase 1.
-  return "AED " + Math.round(Number(v)).toLocaleString();
+  // local currency derived from /health.geo (AED / SAR / EGP)
+  return CURRENT_CCY + " " + Math.round(Number(v)).toLocaleString();
 }
 function ago(ts) {
   if (!ts) return "never";
@@ -270,41 +621,162 @@ function ago(ts) {
 }
 
 async function loadHealth() {
-  const el = document.getElementById("status");
+  const statusEl = document.getElementById("status");
+  const clockEl = document.getElementById("clock");
   try {
     const h = await api("/health");
-    el.innerHTML = `<span class="dot ok"></span>online · ${h.geo} · ${new Date(h.now).toLocaleTimeString()}`;
+    // first load only: take geo from /health if user hasn't picked one yet.
+    // subsequent loads: respect the user's toggle choice (setGeo set CURRENT_GEO already).
+    if (!window._geoInitialized) {
+      CURRENT_GEO = (h.geo || "uae").toLowerCase();
+      CURRENT_CCY = GEO_TO_CCY[CURRENT_GEO] || "AED";
+      // sync the toggle's active state with the initial geo from /health
+      document.querySelectorAll('.geo-toggle button').forEach(b =>
+        b.classList.toggle('active', b.dataset.geo === CURRENT_GEO)
+      );
+      window._geoInitialized = true;
+    }
+    const tz = GEO_TO_TZ[CURRENT_GEO] || "gst";
+    const heroSub = document.getElementById("hero-subtitle");
+    if (heroSub) heroSub.textContent = `Morpheus · ${CURRENT_GEO}`;
+    statusEl.innerHTML = `<span class="dot ok"></span>online`;
+    const t = new Date(h.now);
+    const hh = String(t.getHours()).padStart(2,"0");
+    const mm = String(t.getMinutes()).padStart(2,"0");
+    if (clockEl) clockEl.textContent = `${hh}:${mm} ${tz}`;
   } catch (e) {
-    el.innerHTML = `<span class="dot dead"></span>backend offline · start flask on :5001`;
+    statusEl.innerHTML = `<span class="dot dead"></span>offline`;
   }
+}
+
+// stub sparkline — no 7d history endpoint yet; render a flat baseline.
+// when backend exposes /history?metric=xxx&days=7, replace with real data.
+function sparklineSvg(points) {
+  if (!points || !points.length) {
+    // flat placeholder line
+    return `<svg class="spark" viewBox="0 0 70 24" preserveAspectRatio="none"><path d="M 0 14 L 70 14"/></svg>`;
+  }
+  const min = Math.min(...points), max = Math.max(...points);
+  const range = max - min || 1;
+  const n = points.length;
+  const d = points.map((v, i) => {
+    const x = (i / (n - 1 || 1)) * 70;
+    const y = 22 - ((v - min) / range) * 20;
+    return `${i ? "L" : "M"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(" ");
+  return `<svg class="spark" viewBox="0 0 70 24" preserveAspectRatio="none"><path d="${d}"/></svg>`;
+}
+
+function deltaPill(deltaPct, lowerIsBetter) {
+  if (deltaPct === null || deltaPct === undefined) return `<span class="delta flat">—</span>`;
+  const sign = deltaPct > 0 ? "▲" : deltaPct < 0 ? "▼" : "·";
+  const cls = deltaPct === 0 ? "flat" : (deltaPct > 0 ? "up" : "down");
+  // up=red default (worse). flip when lower-is-better metrics improve when delta is negative.
+  return `<span class="delta ${cls}">${sign} ${Math.abs(deltaPct).toFixed(1)}%</span>`;
 }
 
 async function loadStrip() {
   const el = document.getElementById("strip");
   try {
     const m = await api("/platform_health");
+    // 13 KPI tiles per agreed top-strip spec. all D0 except FEFO (D-1, settles overnight).
+    // present pickers sub: show "ipp-only" extras when biometric covers most pickers (UAE today),
+    // else fall back to "as of {date}" so a d-1 ipp-only count is honest about its freshness (KSA).
+    const _aod = m.total_logged_in?.as_of_date;
+    const _todayIso = new Date().toISOString().slice(0,10);
+    const _isToday = _aod === _todayIso;
+    const _ippExtras = m.total_logged_in?.ipp_only_extras || 0;
+    const presentSub = _isToday
+      ? `+${fmtInt(_ippExtras)} ipp-only`
+      : (_aod ? `ipp · as of ${_aod.slice(5)}` : "no data");
     const cells = [
-      { label: "present pickers",     value: fmtInt(m.total_logged_in?.total),               sub: `+${fmtInt(m.total_logged_in?.ipp_only_extras)} ipp-only (no bio punch)` },
-      { label: "% absenteeism",       value: fmt(m.pct_absenteeism?.pct, 1) + "%",           sub: `${fmtInt(m.pct_absenteeism?.absent)} of ${fmtInt(m.pct_absenteeism?.planned)} planned` },
-      { label: "p95 fulfilment",      value: fmt(m.p95_fulfillment_mins, 1),                 sub: "min · fulfilling → fulfilled" },
-      { label: "p95 fulfil → delivery", value: fmt(m.p95_fulfilled_to_delivered_mins, 1),    sub: "min · last-mile" },
-      { label: "% defects",           value: fmt(m.pct_defects?.pct, 2) + "%",               sub: `${fmtInt(m.pct_defects?.defects)} of ${fmtInt(m.pct_defects?.orders)}` },
-      { label: "% skips",             value: fmt(m.pct_skips?.pct, 2) + "%",                 sub: `${fmtInt(m.pct_skips?.skips)} of ${fmtInt(m.pct_skips?.picked)}` },
-      { label: "fefo losses",         value: fmtMoney(m.fefo_losses?.value),                 sub: `${fmtInt(m.fefo_losses?.skus_breached)} skus` },
-      { label: "audit pass %",        value: fmt(m.audit_pct_pass?.pct, 1) + "%",            sub: `${m.audit_pct_pass?.pass}/${m.audit_pct_pass?.total} stores` },
-      { label: "ambient putaway",     value: fmt(m.putaway_adherence?.ambient_pct, 1) + "%", sub: "≤ 360 min sla" },
-      { label: "frozen putaway",      value: fmt(m.putaway_adherence?.frozen_pct, 1) + "%",  sub: "≤ 30 min sla" },
-      { label: "chilled putaway",     value: fmt(m.putaway_adherence?.chilled_pct, 1) + "%", sub: "≤ 60 min sla" },
-      { label: "stocktake adh",       value: fmt(m.stocktake_adherence?.pct, 1) + "%",       sub: `${fmtInt(m.stocktake_adherence?.completed)} of ${fmtInt(m.stocktake_adherence?.overall)}` },
+      { label: "orders d0",            value: fmtInt(m.total_orders?.orders),                 sub: `${fmtInt(m.total_orders?.stores)} stores · src ${(() => { const lr = String(m.total_orders?.last_refresh || ""); const t = lr.includes(" ") ? lr.split(" ")[1] : lr; return t ? t.slice(0,5) : "—"; })()}` },
+      { label: "present pickers",      value: fmtInt(m.total_logged_in?.total),               sub: presentSub },
+      { label: "p95 fulfilment",       value: fmt(m.p95_fulfillment_mins, 1),                 sub: "min · fulfilling → fulfilled" },
+      { label: "p95 fulfil → delivery",value: fmt(m.p95_fulfilled_to_delivered_mins, 1),      sub: "min · last-mile" },
+      { label: "% defects",            value: fmt(m.pct_defects?.pct, 2) + "%",               sub: `${fmtInt(m.pct_defects?.defects)} of ${fmtInt(m.pct_defects?.orders)}` },
+      { label: "% skips",              value: fmt(m.pct_skips?.pct, 2) + "%",                 sub: (() => { const aod = m.pct_skips?.as_of_date; const base = `${fmtInt(m.pct_skips?.skips)} of ${fmtInt(m.pct_skips?.picked)}`; return (!aod || aod === _todayIso) ? base : `${base} · as of ${aod.slice(5)}`; })() },
+      { label: "fefo losses",          value: fmtMoney(m.fefo_losses?.value),                 sub: (() => { const aod = m.fefo_losses?.as_of_date; const skus = `${fmtInt(m.fefo_losses?.skus_breached)} skus`; return aod ? `${skus} · as of ${aod.slice(5)}` : `${skus} · d-1`; })() },
+      { label: "audit pass %",         value: fmt(m.audit_pct_pass?.pct, 1) + "%",            sub: `${m.audit_pct_pass?.pass}/${m.audit_pct_pass?.total} stores` },
+      { label: "ambient putaway",      value: fmt(m.putaway_adherence?.ambient_pct, 1) + "%", sub: (() => { const aod = m.putaway_adherence?.as_of_date; return (!aod || aod === _todayIso) ? "≤ 360 min sla" : `≤ 360 min sla · as of ${aod.slice(5)}`; })() },
+      { label: "chilled putaway",      value: fmt(m.putaway_adherence?.chilled_pct, 1) + "%", sub: (() => { const aod = m.putaway_adherence?.as_of_date; return (!aod || aod === _todayIso) ? "≤ 60 min sla" : `≤ 60 min sla · as of ${aod.slice(5)}`; })() },
+      { label: "frozen putaway",       value: fmt(m.putaway_adherence?.frozen_pct, 1) + "%",  sub: (() => { const aod = m.putaway_adherence?.as_of_date; return (!aod || aod === _todayIso) ? "≤ 30 min sla" : `≤ 30 min sla · as of ${aod.slice(5)}`; })() },
+      { label: "stocktake adh",        value: fmt(m.stocktake_adherence?.pct, 1) + "%",       sub: `${fmtInt(m.stocktake_adherence?.completed)}/${fmtInt(m.stocktake_adherence?.overall)}` },
     ];
     el.innerHTML = cells.map(c => `
-      <div class="kpi-cell">
+      <div class="kpi-tile">
         <div class="label">${c.label}</div>
-        <div class="value">${c.value}</div>
+        <div class="value-row"><div class="value">${c.value}</div></div>
         <div class="sub">${c.sub}</div>
       </div>`).join("");
   } catch (e) {
-    el.innerHTML = `<div class="kpi-cell"><div class="label">platform health</div><div class="value">—</div><div class="sub">backend offline</div></div>`;
+    el.innerHTML = `<div class="kpi-tile"><div class="label">platform health</div><div class="value">—</div><div class="sub">backend offline</div></div>`;
+  }
+}
+
+async function loadHero() {
+  try {
+    const m = await api("/platform_health");
+    await ensureCaches();
+    // tier counts across all agents from cached alerts
+    let t3 = 0, t2 = 0, t1 = 0;
+    for (const a of (alertsCache || [])) {
+      if (a.tier === 3) t3++; else if (a.tier === 2) t2++; else if (a.tier === 1) t1++;
+    }
+    // status word + dot
+    const word = t3 >= 5 ? "critical" : t3 > 0 ? "attention" : t2 > 5 ? "attention" : "healthy";
+    const dotColor = word === "critical" ? "var(--red)" : word === "attention" ? "var(--amber)" : "var(--green)";
+    document.getElementById("hero-dot").style.background = dotColor;
+    document.getElementById("hero-word").textContent = word;
+    // headline — driven by worst breach
+    let headline;
+    if (t3 > 0) {
+      const t3Alerts = (alertsCache || []).filter(a => a.tier === 3).slice().sort((a,b) => {
+        const av = a.payload?.absent_count ?? a.payload?.def_orders ?? a.payload?.skips ?? a.payload?.breach_qty ?? a.payload?.missing_value ?? 0;
+        const bv = b.payload?.absent_count ?? b.payload?.def_orders ?? b.payload?.skips ?? b.payload?.breach_qty ?? b.payload?.missing_value ?? 0;
+        return bv - av;
+      });
+      const top = t3Alerts[0];
+      const topDs = top?.payload?.ds_name || top?.ds_code || "multiple sites";
+      const agentNames = {
+        agent_01_attendance: "attendance",
+        agent_02_iph_pickers: "pickers",
+        agent_03_iph_putaway: "putaway",
+        agent_05_defects: "defects",
+        agent_06_fefo: "fefo",
+        agent_07_adjustments: "adjustments",
+        agent_08_putaway_delays: "putaway delays",
+        agent_09_missing_inventory: "missing inventory",
+        agent_10_skips_stocktake: "stocktake",
+        agent_11_audit_scores: "audit",
+      };
+      const topAgent = agentNames[top?.agent] || top?.agent || "ops";
+      headline = `${t3} critical ${t3 === 1 ? "breach" : "breaches"} across the floor. Top driver: ${topDs} (${topAgent}).`;
+    } else if (t2 > 0) {
+      headline = `No critical breaches. ${t2} t2 watch items across agents — clearable today.`;
+    } else {
+      headline = `Platform healthy. All agents within target. ${t1} t1 floor items being monitored.`;
+    }
+    document.getElementById("hero-headline").textContent = headline;
+    // hero KPI = total t3
+    document.getElementById("hero-kpi-value").textContent = t3.toLocaleString();
+    document.getElementById("hero-kpi-delta").textContent = "vs yesterday —";
+    // at-risk AED — sum of FEFO losses + missing inventory value (rough)
+    const atRisk = (m.fefo_losses?.value || 0) + ((alertsCache || []).reduce((s,a) => s + (a.payload?.missing_value || 0), 0));
+    document.getElementById("hero-kpi-risk").textContent = "AED " + Math.round(atRisk).toLocaleString();
+    // breach footer counts
+    document.getElementById("hero-t3").textContent = `t3 ${t3}`;
+    document.getElementById("hero-t2").textContent = `t2 ${t2}`;
+    document.getElementById("hero-t1").textContent = `t1 ${t1}`;
+    // last action
+    const lastTs = (alertsCache || []).reduce((m, a) => {
+      const t = a.last_action_at ? new Date(a.last_action_at).getTime() : 0;
+      return Math.max(m, t);
+    }, 0);
+    document.getElementById("hero-last").textContent = lastTs ? `last action ${ago(lastTs)}` : "last action —";
+  } catch (e) {
+    document.getElementById("hero-headline").textContent = "backend offline · start flask on :5001";
+    document.getElementById("hero-word").textContent = "offline";
   }
 }
 
@@ -333,50 +805,98 @@ async function renderMain() {
     await ensureCaches();
     const byAgent = {};
     for (const a of alertsCache) (byAgent[a.agent] = byAgent[a.agent] || []).push(a);
+    // sort: breach (t3>0) → attention (t2>0) → watch (t1>0) → healthy, then t3 desc
+    const sorted = agentsCache.slice().sort((a, b) => {
+      const ac = a.counts_48h || {}, bc = b.counts_48h || {};
+      const aRank = (ac.t3 > 0) ? 0 : (ac.t2 > 0) ? 1 : (ac.t1 > 0) ? 2 : 3;
+      const bRank = (bc.t3 > 0) ? 0 : (bc.t2 > 0) ? 1 : (bc.t1 > 0) ? 2 : 3;
+      if (aRank !== bRank) return aRank - bRank;
+      return (bc.t3 || 0) - (ac.t3 || 0);
+    });
     el.innerHTML = `<div class="agents-grid">
-      ${agentsCache.map(a => renderTile(a, byAgent[a.id] || [])).join("")}
+      ${sorted.map(a => renderTile(a, byAgent[a.id] || [])).join("")}
     </div>`;
   } catch (e) {
     el.innerHTML = `<div class="empty">cannot reach api · ${escapeHtml(e.message)}</div>`;
   }
 }
 
-// agent display name overrides + tile-card metric label
+// Title Case display name + icon glyph + per-agent secondary metric
 const AGENT_DISPLAY = {
-  agent_10_skips_stocktake: "incident stocktake % adherence",
+  agent_01_attendance:        { name: "Attendance & Absenteeism", icon: "👥", secondary: (alerts) => ({ label: "absent today", value: fmtInt(alerts.reduce((s,a) => s + (a.payload?.absent_count || 0), 0)) }) },
+  agent_02_iph_pickers:       { name: "IPH Pickers (Outbound)",   icon: "📤", secondary: (alerts) => { const v = alerts.map(a => a.payload?.iph).filter(x => x != null); return { label: "iph current", value: v.length ? Math.round(v.reduce((s,x) => s+x, 0)/v.length) : "—" }; } },
+  agent_03_iph_putaway:       { name: "IPH Putaway (Inbound)",    icon: "📥", secondary: (alerts) => { const v = alerts.map(a => a.payload?.iph).filter(x => x != null); return { label: "iph current", value: v.length ? Math.round(v.reduce((s,x) => s+x, 0)/v.length) : "—" }; } },
+  agent_04_skips_picker:      { name: "Picker Skips",             icon: "⏭", secondary: (alerts) => ({ label: "skips total", value: fmtInt(alerts.reduce((s,a) => s + (a.payload?.skips || 0), 0)) }) },
+  agent_05_defects:           { name: "Defects",                   icon: "⚠", secondary: (alerts) => ({ label: "def orders", value: fmtInt(alerts.reduce((s,a) => s + (a.payload?.def_orders || 0), 0)) }) },
+  agent_06_fefo:              { name: "FEFO Compliance",           icon: "📅", secondary: (alerts) => ({ label: "loss aed", value: fmtMoney(alerts.reduce((s,a) => s + (a.payload?.ex_nl_value || 0), 0)) }) },
+  agent_07_adjustments:       { name: "Inventory Adjustments",     icon: "±",  secondary: (alerts) => ({ label: "net aed", value: fmtMoney(alerts.reduce((s,a) => s + Math.abs(a.payload?.net_value || 0), 0)) }) },
+  agent_08_putaway_delays:    { name: "Putaway Delays",            icon: "⏰", secondary: (alerts) => ({ label: "breach qty", value: fmtInt(alerts.reduce((s,a) => s + (a.payload?.breach_qty || 0), 0)) }) },
+  agent_09_missing_inventory: { name: "Missing Inventory",         icon: "❌", secondary: (alerts) => ({ label: "missing aed", value: fmtMoney(alerts.reduce((s,a) => s + (a.payload?.missing_value || 0), 0)) }) },
+  agent_10_skips_stocktake:   { name: "Stocktake Adherence",       icon: "📋", secondary: (alerts) => ({ label: "jobs created", value: fmtInt(alerts.reduce((s,a) => s + (a.payload?.jobs_created || 0), 0)) }) },
+  agent_11_audit_scores:      { name: "Audit Scores",              icon: "★",  secondary: (alerts) => { const v = alerts.map(a => a.payload?.score1).filter(x => x != null); return { label: "avg score", value: v.length ? (v.reduce((s,x) => s+x, 0)/v.length).toFixed(2) : "—" }; } },
 };
+
+function freshnessDot(completedAt) {
+  if (!completedAt) return "dead";
+  const mins = (Date.now() - new Date(completedAt).getTime()) / 60000;
+  if (mins < 90) return "ok";
+  if (mins < 360) return "warn";
+  return "dead";
+}
 
 function renderTile(a, alerts) {
   const c = a.counts_48h || {};
   const t3 = c.t3 || 0, t2 = c.t2 || 0, t1 = c.t1 || 0;
   const cls = t3 > 0 ? "t3" : t2 > 0 ? "t2" : t1 > 0 ? "t1" : "idle";
+  const statusWord = t3 > 0 ? "breach" : t2 > 0 ? "attention" : t1 > 0 ? "watch" : "healthy";
   const lr = a.last_run || {};
   const sortedAlerts = (alerts || []).slice().sort((x, y) => (y.tier || 0) - (x.tier || 0));
   const top3 = sortedAlerts.slice(0, 3).map(r => {
     const code = r.ds_code || r.vendor_shortcode || "—";
+    const dmg = r.payload?.absent_count ?? r.payload?.def_orders ?? r.payload?.skips ?? r.payload?.breach_qty ?? r.payload?.missing_value ?? r.metric_value;
+    const meta = (dmg !== null && dmg !== undefined) ? fmtInt(dmg) : "";
     return `<div class="br">
       <span class="pill t${r.tier}">t${r.tier}</span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(code)}</span>
+      <span class="entity">${escapeHtml(code)}</span>
+      ${meta ? `<span class="meta">${meta}</span>` : ""}
     </div>`;
-  }).join("") || `<div style="font-size:10.5px;color:var(--muted2);font-style:italic">no breaches in window</div>`;
-  const display = AGENT_DISPLAY[a.id] || a.name;
+  }).join("") || `<div style="font-size:11px;color:var(--muted2);font-style:italic">no breaches in window</div>`;
+  const meta = AGENT_DISPLAY[a.id] || { name: a.name, icon: "·", secondary: () => ({ label: "alerts", value: fmtInt(alerts.length) }) };
+  const sec = meta.secondary(alerts || []);
+  const freshDot = freshnessDot(lr.completed_at);
+  const refreshTime = lr.completed_at ? (() => {
+    const d = new Date(lr.completed_at);
+    return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  })() : "—";
   return `<div class="agent-tile ${cls}" onclick="location.hash='${a.id}'">
     <div class="agent-header">
-      <div>
-        <div class="agent-name">${escapeHtml(display)}</div>
-        <div class="agent-cadence">${a.cadence} · ${ago(lr.completed_at)}</div>
+      <div class="agent-head-left">
+        <div class="agent-icon">${meta.icon}</div>
+        <div class="agent-head-text">
+          <div class="agent-name">${escapeHtml(meta.name)}</div>
+          <div class="agent-cadence">${a.cadence}</div>
+        </div>
       </div>
-      <div class="agent-arrow">→</div>
+      <div class="status-pill ${cls}"><span class="dot"></span>${statusWord}</div>
     </div>
     <div class="tier-row">
-      <div class="tier-block t3"><div class="label">t3</div><div class="value">${t3}</div></div>
-      <div class="tier-block t2"><div class="label">t2</div><div class="value">${t2}</div></div>
-      <div class="tier-block t1"><div class="label">t1</div><div class="value">${t1}</div></div>
+      <div class="tier-blocks">
+        <div class="tier-block t3"><div class="label">t3</div><div class="value">${t3}</div></div>
+        <div class="tier-block t2"><div class="label">t2</div><div class="value">${t2}</div></div>
+        <div class="tier-block t1"><div class="label">t1</div><div class="value">${t1}</div></div>
+      </div>
+      <div class="secondary-metric">
+        <div class="label">${escapeHtml(sec.label)}</div>
+        <div class="value">${escapeHtml(String(sec.value))}</div>
+      </div>
     </div>
     <div class="agent-breaches">
       <div class="label">top breaches</div>${top3}
     </div>
-    <div class="agent-foot">id ${a.id}</div>
+    <div class="agent-foot">
+      <span class="dot ${freshDot}"></span>
+      <span>refreshed ${refreshTime} ${CURRENT_GEO} · ${a.cadence}</span>
+    </div>
   </div>`;
 }
 
@@ -407,24 +927,28 @@ const COLUMNS = {
       ["tier", "tier"], ["ds_code", "ds"], ["ds_name", "name"],
       ["am_name", "am"], ["asst_mgr", "supervisor"], ["tl_name", "tl"],
       ["payload.opd_bucket", "bucket"], ["payload.opd", "opd", "num"],
-      ["payload.iph", "iph", "num"], ["payload.cut1", "p10", "num"],
+      ["payload.outbound_qty", "qty picked", "num"],
+      ["payload.iph", "iph", "num"],
     ],
     picker_cols: [
       ["tier", "tier"], ["ds_code", "ds"], ["ds_name", "name"],
-      ["payload.user_name", "picker"], ["payload.iph", "iph", "num"],
-      ["payload.outbound_qty", "qty", "num"], ["payload.cut1", "p10", "num"],
+      ["payload.user_name", "picker"],
+      ["payload.outbound_qty", "qty", "num"],
+      ["payload.iph", "iph", "num"],
     ],
   },
   agent_03_iph_putaway: {
     cols: [
       ["tier", "tier"], ["ds_code", "ds"], ["ds_name", "name"],
       ["am_name", "am"], ["asst_mgr", "supervisor"], ["tl_name", "tl"],
-      ["payload.iph", "iph", "num"], ["payload.cut1", "p10", "num"],
+      ["payload.inbound_qty", "items inbounded", "num"],
+      ["payload.iph", "iph", "num"],
     ],
     picker_cols: [
       ["tier", "tier"], ["ds_code", "ds"], ["ds_name", "name"],
-      ["payload.Employee_ID", "user_id"], ["payload.iph", "iph", "num"],
-      ["payload.inbound_qty", "qty", "num"], ["payload.cut1", "p10", "num"],
+      ["payload.Employee_ID", "user_id"],
+      ["payload.inbound_qty", "qty", "num"],
+      ["payload.iph", "iph", "num"],
     ],
   },
   agent_04_skips_picker: {
@@ -466,11 +990,29 @@ const COLUMNS = {
     ],
   },
   agent_07_adjustments: {
+    // partner_9411 (noon-own): show net + gross + % of live_inv
     cols: [
       ["tier", "tier"], ["ds_code", "ds"], ["payload.ds_name", "name"],
       ["am_name", "am"], ["asst_mgr", "supervisor"], ["tl_name", "tl"],
-      ["payload.adj_value", "adj $", "money"], ["payload.live_inv_value", "live inv $", "money"],
-      ["payload.adj_pct", "%", "pct3"],
+      ["payload.adj_up_units", "+qty", "num"],
+      ["payload.adj_down_units", "-qty", "num"],
+      ["payload.net_units", "net qty", "num"],
+      ["payload.adj_up_value", "+AED", "money"],
+      ["payload.adj_down_value", "-AED", "money"],
+      ["payload.net_value", "net AED", "money_signed"],
+      ["payload.live_inv_value", "live inv AED", "money"],
+      ["payload.adj_pct", "% of inv", "pct3"],
+    ],
+    non_9411_cols: [
+      ["tier", "tier"], ["ds_code", "ds"], ["payload.ds_name", "name"],
+      ["am_name", "am"], ["asst_mgr", "supervisor"], ["tl_name", "tl"],
+      ["payload.adj_up_units", "+qty", "num"],
+      ["payload.adj_down_units", "-qty", "num"],
+      ["payload.net_units", "net qty", "num"],
+      ["payload.adj_up_value", "+AED", "money"],
+      ["payload.adj_down_value", "-AED", "money"],
+      ["payload.net_value", "net AED", "money_signed"],
+      ["payload.days_with_adj", "days with adj", "num"],
     ],
   },
   agent_08_putaway_delays: {
@@ -478,7 +1020,7 @@ const COLUMNS = {
       ["tier", "tier"], ["ds_code", "ds"], ["payload.ds_name", "name"],
       ["am_name", "am"], ["asst_mgr", "supervisor"], ["tl_name", "tl"],
       ["payload.storage_type", "storage"],
-      ["payload.total_pending", "total pending", "num"],
+      ["payload.total_qty", "total items", "num"],
       ["payload.breach_qty", "breach qty", "num"],
       ["payload.breach_pct", "breach %", "pct1"],
     ],
@@ -512,6 +1054,20 @@ const COLUMNS = {
       ["payload.fails_in_4w", "fails 4w", "num"],
     ],
   },
+  agent_12_bt_pending_pick: {
+    cols: [
+      ["tier", "tier"], ["ds_code", "ds"], ["payload.ds_name", "name"],
+      ["am_name", "am"], ["asst_mgr", "supervisor"], ["tl_name", "tl"],
+      ["payload.partner_grp", "partner"],
+      ["payload.src_wh_codes", "src wh"],
+      ["payload.qty_lt_1d", "today qty", "num"],
+      ["payload.qty_1_2d", "1-2d qty", "num"],
+      ["payload.qty_gt_2d", ">2d qty", "num"],
+      ["payload.breach_qty", "breach qty", "num"],
+      ["payload.qty_total", "total qty", "num"],
+      ["payload.value_total", "AED value", "money"],
+    ],
+  },
 };
 
 const SUB_TABS_BY_AGENT = {
@@ -520,6 +1076,11 @@ const SUB_TABS_BY_AGENT = {
   agent_02_iph_pickers: ["overall_d0", "picker_d0", "overall_d1", "picker_d1"],
   agent_03_iph_putaway: ["overall_d0", "picker_d0", "overall_d1", "picker_d1"],
   agent_04_skips_picker: ["store", "picker"],
+  agent_07_adjustments: [
+    "partner_9411_d1",   "non_9411_d1",
+    "partner_9411_l7d",  "non_9411_l7d",
+    "partner_9411_l30d", "non_9411_l30d",
+  ],
 };
 
 // pretty label for sub-tab pills (e.g. "cc_d1" → "cc d-1", "overall_d0" → "overall d0")
@@ -530,14 +1091,36 @@ function labelSubTab(s) {
           .replace(/_/g, " ");
 }
 
+// per-agent "damage" sort field — pick the metric that represents the
+// absolute hit (AED $ value, qty, count) rather than a rate. used to sort
+// deep-dive tables largest → smallest within each tier.
+const DAMAGE_FIELD = {
+  agent_01_attendance:        "absent_count",            // # people absent (largest hits first)
+  agent_04_skips_picker:      "skips",                   // raw skip count
+  agent_05_defects:           "def_orders",              // # defective orders
+  agent_06_fefo:              "ex_nl_value",             // AED loss
+  agent_07_adjustments:       "adj_value",               // AED adjusted (both sub-tabs)
+  agent_08_putaway_delays:    "breach_qty",              // items past SLA
+  agent_09_missing_inventory: "missing_value",           // AED of missing inv
+  agent_10_skips_stocktake:   "jobs_created",            // total jobs (force-closed scaled by volume)
+  agent_11_audit_scores:      "fails_in_4w",             // # weeks failed (highest = worst)
+  // agent_02/03 iph: metric_value (lower iph = worse) — invert sort instead
+};
+const INVERT_SORT = new Set(["agent_02_iph_pickers", "agent_03_iph_putaway"]);
+
 const SUB_TAB_COL_KEY = {
   agent_01_attendance: (st) => st.startsWith("vendor_") ? "vendor_cols" : "cols",
   agent_02_iph_pickers: (st) => st.startsWith("picker_") ? "picker_cols" : "cols",
   agent_03_iph_putaway: (st) => st.startsWith("picker_") ? "picker_cols" : "cols",
   agent_04_skips_picker: (st) => st === "picker" ? "picker_cols" : "cols",
+  agent_07_adjustments: (st) => st && st.startsWith("non_9411") ? "non_9411_cols" : "cols",
 };
 
 const subTabState = {};
+// per-(agent, sub_tab) sort state. user click on a header sets {col, dir}.
+// dir: 'asc' / 'desc'. null state → falls back to default damage-sort.
+const sortState = {};
+function _sortKey(agentId, subTab) { return agentId + "::" + (subTab || ""); }
 
 function pickValue(row, path) {
   if (path === "tier" || path === "ds_code" || path === "vendor_shortcode") return row[path];
@@ -562,6 +1145,12 @@ function fmtCell(val, kind) {
   if (kind === "pct2") return fmt(val, 2) + "%";
   if (kind === "pct3") return fmt(val, 3) + "%";
   if (kind === "money") return fmtMoney(val);
+  if (kind === "money_signed") {
+    const n = Number(val); if (isNaN(n)) return "—";
+    const formatted = "AED " + Math.abs(Math.round(n)).toLocaleString();
+    return n < 0 ? `<span style="color:var(--t3)">−${formatted}</span>`
+                 : (n > 0 ? `<span style="color:var(--ok)">+${formatted}</span>` : "0");
+  }
   return escapeHtml(String(val));
 }
 
@@ -586,16 +1175,35 @@ async function renderDeepDive(agentId) {
 function renderDeepHtml(agent, alerts) {
   const lr = agent.last_run || {};
   const subTabList = SUB_TABS_BY_AGENT[agent.id];
-  const subTab = subTabState[agent.id] || (subTabList && subTabList[0]) || null;
+  // validate stored sub-tab is still in the list (handles renames)
+  let subTab = subTabState[agent.id];
+  if (subTabList && (!subTab || !subTabList.includes(subTab))) subTab = subTabList[0];
   const filtered = subTabList ? alerts.filter(a => a.sub_tab === subTab) : alerts;
   // sub-tab-aware tier counts (was: total across all sub-tabs which was misleading)
   const t3 = filtered.filter(a => a.tier === 3).length;
   const t2 = filtered.filter(a => a.tier === 2).length;
   const t1 = filtered.filter(a => a.tier === 1).length;
-  // sort t3 → t2 → t1, then by metric desc
+  // sort: user click on header overrides default damage-sort
+  const skey = _sortKey(agent.id, subTab);
+  const userSort = sortState[skey];
+  const damageField = DAMAGE_FIELD[agent.id];
+  const invert = INVERT_SORT.has(agent.id);
+
   filtered.sort((a, b) => {
+    if (userSort) {
+      const av = pickValue(a, userSort.col);
+      const bv = pickValue(b, userSort.col);
+      const an = (av === null || av === undefined) ? -Infinity : (typeof av === 'number' ? av : String(av).toLowerCase());
+      const bn = (bv === null || bv === undefined) ? -Infinity : (typeof bv === 'number' ? bv : String(bv).toLowerCase());
+      if (an < bn) return userSort.dir === 'asc' ? -1 : 1;
+      if (an > bn) return userSort.dir === 'asc' ? 1 : -1;
+      return 0;
+    }
+    // default: t3 → t2 → t1, then damage desc (or asc for iph where lower=worse)
     if ((b.tier || 0) !== (a.tier || 0)) return (b.tier || 0) - (a.tier || 0);
-    return (b.metric_value || 0) - (a.metric_value || 0);
+    const av = damageField ? (a.payload?.[damageField] ?? 0) : (a.metric_value ?? 0);
+    const bv = damageField ? (b.payload?.[damageField] ?? 0) : (b.metric_value ?? 0);
+    return invert ? (av - bv) : (bv - av);
   });
 
   const subTabsHtml = subTabList ? `<div class="sub-tabs">
@@ -608,7 +1216,12 @@ function renderDeepHtml(agent, alerts) {
   const colKey = (subTab && colKeyFn) ? colKeyFn(subTab) : "cols";
   const colSpec = (COLUMNS[agent.id] && (COLUMNS[agent.id][colKey] || COLUMNS[agent.id].cols)) || [];
 
-  const headRow = colSpec.map(c => `<th class="${c[2] === 'num' || c[2]?.startsWith('pct') || c[2] === 'money' ? 'num' : ''}">${c[1]}</th>`).join("") + "<th>action</th>";
+  const headRow = colSpec.map(c => {
+    const numClass = (c[2] === 'num' || c[2]?.startsWith('pct') || c[2] === 'money' || c[2] === 'money_signed') ? 'num' : '';
+    const isActive = userSort && userSort.col === c[0];
+    const arrow = isActive ? (userSort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+    return `<th class="${numClass} sortable" data-col="${escapeHtml(c[0])}" onclick="sortBy('${agent.id}','${subTab || ''}','${escapeHtml(c[0])}')">${c[1]}${arrow}</th>`;
+  }).join("") + "<th>action</th>";
 
   const tableRows = filtered.length ? filtered.map(r => {
     const cells = colSpec.map(c => {
@@ -619,7 +1232,10 @@ function renderDeepHtml(agent, alerts) {
     const draftBtn = r.draft_id
       ? `<button class="draft-btn has-draft" disabled title="draft already created">drafted</button>`
       : `<button class="draft-btn" onclick="createDraft(${r.id}, this)">create draft</button>`;
-    return `<tr class="t${r.tier}">${cells}<td>${draftBtn}</td></tr>`;
+    const csvBtn = agent.id === 'agent_05_defects'
+      ? `<button class="csv-btn" onclick="downloadDefectsCsv('${r.ds_code}', this)" title="download ${r.payload?.def_orders ?? ''} raw complaint rows">csv</button>`
+      : '';
+    return `<tr class="t${r.tier}">${cells}<td style="display:flex;gap:4px;align-items:center">${draftBtn}${csvBtn}</td></tr>`;
   }).join("") : `<tr><td colspan="${colSpec.length + 1}"><div class="empty">no breaches in window</div></td></tr>`;
 
   return `<div class="dd-header">
@@ -644,7 +1260,40 @@ function setSub(agentId, t) {
   renderDeepDive(agentId);
 }
 
+function sortBy(agentId, subTab, col) {
+  const skey = _sortKey(agentId, subTab);
+  const cur = sortState[skey];
+  if (cur && cur.col === col) {
+    // toggle dir; third click clears
+    if (cur.dir === 'desc') sortState[skey] = { col, dir: 'asc' };
+    else delete sortState[skey];
+  } else {
+    sortState[skey] = { col, dir: 'desc' };  // start with desc (largest first)
+  }
+  renderDeepDive(agentId);
+}
+
 // open the draft preview modal · fetches /preview and shows editable fields
+async function downloadDefectsCsv(dsCode, btn) {
+  btn.disabled = true; btn.textContent = "…";
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const res = await fetch(`${API}/agents/agent_05_defects/export?ds_code=${encodeURIComponent(dsCode)}&date=${today}`);
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || res.status); }
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `defects_${dsCode}_${today}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    btn.textContent = "csv";
+  } catch(e) {
+    alert("csv export failed: " + e.message);
+    btn.textContent = "csv";
+  }
+  btn.disabled = false;
+}
+
 async function createDraft(alertId, btn) {
   btn.disabled = true; btn.textContent = "loading…";
   let preview;
@@ -744,12 +1393,88 @@ window.addEventListener("hashchange", () => {
   agentsCache = null; alertsCache = null;
   route();
 });
-async function refreshAll() {
+async function refreshAll({ bustCache = false } = {}) {
   agentsCache = null; alertsCache = null; dsRoutingCache = null;
-  await Promise.all([loadHealth(), loadStrip(), route()]);
+  // health first so geo/currency are set before any fmtMoney / label renders
+  await loadHealth();
+  // bust the 5-min flask platform_health cache when caller wants fresh BQ data
+  // (first page load + manual refresh button). 60-s auto-ticks skip this so we
+  // don't hammer BQ on every interval.
+  if (bustCache) {
+    try { await api('/platform_health?nocache=1'); }
+    catch (e) { console.warn('cache bust failed:', e); }
+  }
+  await Promise.all([loadStrip(), route()]);
+  // hero needs alertsCache populated by route()→ensureCaches; runs after
+  await loadHero();
 }
-refreshAll();
+// first paint forces a fresh BQ read so opening the dashboard never shows
+// 5-min-old cached numbers from a previous tab's load.
+refreshAll({ bustCache: true });
 setInterval(refreshAll, 60_000);
+// when the tab regains focus after >2 min away, force a cache-bust so the
+// numbers reflect "now" rather than whatever was cached when you left.
+let _lastVisibleAt = Date.now();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    const awayMs = Date.now() - _lastVisibleAt;
+    if (awayMs > 120_000) refreshAll({ bustCache: true });
+  } else {
+    _lastVisibleAt = Date.now();
+  }
+});
+
+// manual full-refresh: re-run all 12 agents against BQ, then reload the dashboard.
+// wall-clock ~30-90s depending on slowest agent.
+let _runAllCtrl = null;
+async function triggerRunAll(){
+  const btn = document.getElementById('refresh-all-btn');
+  if (!btn || btn.disabled) return;
+  if (_runAllCtrl) _runAllCtrl.abort();
+  const ctrl = new AbortController();
+  _runAllCtrl = ctrl;
+  const t0 = Date.now();
+  btn.disabled = true;
+  btn.classList.add('running');
+  btn.textContent = 'running…';
+  // tick the elapsed seconds so user knows progress
+  const tickId = setInterval(() => {
+    const s = Math.floor((Date.now() - t0) / 1000);
+    btn.textContent = `running ${s}s`;
+  }, 1000);
+  try {
+    const r = await fetch(API + '/agents/run-all', {method:'POST', signal: ctrl.signal});
+    if (ctrl.signal.aborted) return;
+    const data = await r.json().catch(() => ({}));
+    clearInterval(tickId);
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${data.error || data.message || 'run-all failed'}`);
+    const ok = data.ok_count || 0;
+    const total = data.total || 0;
+    const failed = total - ok;
+    if (failed > 0) {
+      // partial failure - log the failed agents to console for diagnosis
+      const failedAgents = (data.results || []).filter(x => !x.ok).map(x => x.agent_id).join(', ');
+      console.warn(`run-all: ${failed} agent(s) failed:`, failedAgents, data);
+      btn.textContent = `${ok}/${total} ok · ${failed} failed`;
+      btn.title = `failed agents: ${failedAgents} (see console for details)`;
+    } else {
+      btn.textContent = `done ${ok}/${total}`;
+      btn.title = `re-run all 12 agents against bigquery, then reload`;
+    }
+    await refreshAll({ bustCache: true });
+    setTimeout(() => { btn.textContent = 'refresh'; btn.classList.remove('running'); btn.disabled = false; }, 2500);
+  } catch (e) {
+    clearInterval(tickId);
+    if (e.name !== 'AbortError') {
+      console.warn('run-all failed:', e);
+      btn.textContent = 'failed · retry';
+      btn.title = `${e.message || e.name} (see console for details)`;
+      setTimeout(() => { btn.textContent = 'refresh'; btn.classList.remove('running'); btn.disabled = false; }, 4000);
+    }
+  } finally {
+    if (_runAllCtrl === ctrl) _runAllCtrl = null;
+  }
+}
 </script>
 </body>
 </html>
